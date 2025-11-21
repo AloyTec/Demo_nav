@@ -1,0 +1,51 @@
+Código,Nombre,Dirección Casa,Terminal Destino,Hora Presentación
+C001,Juan Pérez García,Av. Insurgentes Sur 1234 Col. Del Valle CDMX,Terminal Aeropuerto T1,06:30
+C002,María González López,Calle Reforma 567 Col. Juárez CDMX,Terminal Aeropuerto T1,06:30
+C003,Carlos Rodríguez Sánchez,Av. Revolución 890 Col. San Ángel CDMX,Terminal Aeropuerto T1,06:30
+C004,Ana Martínez Flores,Calle Juárez 432 Col. Centro CDMX,Terminal Aeropuerto T1,06:30
+C005,Luis Hernández Ramírez,Av. Universidad 1230 Col. Copilco CDMX,Terminal Aeropuerto T1,06:30
+C006,Carmen Sánchez Torres,Paseo de la Reforma 789 Col. Cuauhtémoc CDMX,Terminal Aeropuerto T1,06:45
+C007,Jorge Ramírez Castro,Av. Chapultepec 456 Col. Roma CDMX,Terminal Aeropuerto T1,06:45
+C008,Patricia Torres Morales,Calle Hidalgo 234 Col. Centro Histórico CDMX,Terminal Aeropuerto T1,06:45
+C009,Roberto Flores Jiménez,Av. Cuauhtémoc 678 Col. Narvarte CDMX,Terminal Aeropuerto T1,06:45
+C010,Laura Morales Ruiz,Calle Allende 901 Col. Santa María CDMX,Terminal Aeropuerto T1,06:45
+C011,Miguel Jiménez Vargas,Av. Tlalpan 345 Col. Portales CDMX,Terminal Aeropuerto T2,07:00
+C012,Sandra Ruiz Medina,Calle Morelos 567 Col. Guerrero CDMX,Terminal Aeropuerto T2,07:00
+C013,Fernando Castro Díaz,Av. División del Norte 123 Col. Nativitas CDMX,Terminal Aeropuerto T2,07:00
+C014,Isabel Ortiz Cruz,Calle Guerrero 890 Col. Buenavista CDMX,Terminal Aeropuerto T2,07:00
+C015,Ricardo Mendoza Silva,Av. Patriotismo 234 Col. San Pedro CDMX,Terminal Aeropuerto T2,07:00
+C016,Mónica Vargas Reyes,Calle Balderas 456 Col. Centro CDMX,Terminal Aeropuerto T2,07:15
+C017,Alejandro Herrera Gómez,Av. Coyoacán 789 Col. Del Carmen CDMX,Terminal Aeropuerto T2,07:15
+C018,Gabriela Medina Luna,Eje Central 123 Col. Obrera CDMX,Terminal Aeropuerto T2,07:15
+C019,Daniel Guzmán Peña,Av. San Antonio 456 Col. Nápoles CDMX,Terminal Aeropuerto T2,07:15
+C020,Verónica Díaz Ortega,Calle Niños Héroes 678 Col. Doctores CDMX,Terminal Aeropuerto T2,07:15
+C021,Alberto López Serrano,Av. Insurgentes Norte 2345 Col. Lindavista CDMX,Terminal Aeropuerto T1,07:30
+C022,Sofía Rivera Campos,Calzada de Tlalpan 890 Col. Viaducto CDMX,Terminal Aeropuerto T1,07:30
+C023,Diego Moreno Ávila,Av. Taxqueña 567 Col. Campestre CDMX,Terminal Aeropuerto T1,07:30
+C024,Lucía Romero Paz,Periférico Sur 234 Col. Jardines CDMX,Terminal Aeropuerto T1,07:30
+C025,Pablo Navarro Ochoa,Av. Revolución 1456 Col. Mixcoac CDMX,Terminal Aeropuerto T1,07:30
+C026,Daniela Aguilar Santos,Calzada de la Viga 789 Col. Tránsito CDMX,Terminal Aeropuerto T2,07:45
+C027,Andrés Domínguez Rivas,Av. Río Churubusco 345 Col. Granjas CDMX,Terminal Aeropuerto T2,07:45
+C028,Valeria Cortés Mejía,Circuito Interior 678 Col. Anáhuac CDMX,Terminal Aeropuerto T2,07:45
+C029,Sebastián Gil Paredes,Viaducto Miguel Alemán 901 Col. Piedad CDMX,Terminal Aeropuerto T2,07:45
+C030,Carolina Molina Vega,Av. Observatorio 234 Col. Tacubaya CDMX,Terminal Aeropuerto T2,07:45
+C031,Eduardo Blanco Torres,Av. Insurgentes Centro 567 Col. Roma Norte CDMX,Terminal Aeropuerto T1,08:00
+C032,Fernanda Cruz Márquez,Eje 3 Sur 234 Col. Álamos CDMX,Terminal Aeropuerto T1,08:00
+C033,Gustavo Salazar León,Av. Patriotismo 890 Col. Escandón CDMX,Terminal Aeropuerto T1,08:00
+C034,Helena Ibarra Soto,Calzada México Tacuba 456 Col. Popotla CDMX,Terminal Aeropuerto T1,08:00
+C035,Ignacio Ponce Nieto,Av. Constituyentes 789 Col. Lomas CDMX,Terminal Aeropuerto T1,08:00
+C036,Julia Estrada Montes,Periférico Norte 345 Col. Industrial CDMX,Terminal Aeropuerto T2,08:15
+C037,Kevin Sandoval Rojas,Calzada Vallejo 678 Col. Santa Rosa CDMX,Terminal Aeropuerto T2,08:15
+C038,Lorena Pacheco Fuentes,Av. Politécnico 901 Col. Zacatenco CDMX,Terminal Aeropuerto T2,08:15
+C039,Mauricio Vázquez Cano,Eje Central Lázaro Cárdenas 234 Col. San Rafael CDMX,Terminal Aeropuerto T2,08:15
+C040,Natalia Zavala Parra,Calzada Ermita Iztapalapa 567 Col. Agrícola Oriental CDMX,Terminal Aeropuerto T2,08:15
+C041,Oscar Bravo Lara,Av. División del Norte 1234 Col. Del Valle Centro CDMX,Terminal Aeropuerto T1,08:30
+C042,Paola Delgado Ríos,Calzada Chabacano 456 Col. Asturias CDMX,Terminal Aeropuerto T1,08:30
+C043,Quintín Figueroa Mora,Eje 4 Sur 789 Col. Portales Sur CDMX,Terminal Aeropuerto T1,08:30
+C044,Raquel Guerrero Chávez,Av. Cuauhtémoc 345 Col. Santa Cruz Atoyac CDMX,Terminal Aeropuerto T1,08:30
+C045,Sergio Hidalgo Beltrán,Calzada Ignacio Zaragoza 678 Col. Jardines CDMX,Terminal Aeropuerto T1,08:30
+C046,Tatiana Campos Villanueva,Av. Río Consulado 901 Col. Vallejo CDMX,Terminal Aeropuerto T2,08:45
+C047,Ulises Maldonado Espinoza,Circuito Bicentenario 234 Col. Ciudad Satélite CDMX,Terminal Aeropuerto T2,08:45
+C048,Viviana Acosta Téllez,Av. Tecnológico 567 Col. San Mateo CDMX,Terminal Aeropuerto T2,08:45
+C049,Walter Benítez Cordero,Periférico Boulevard 890 Col. Jardín Balbuena CDMX,Terminal Aeropuerto T2,08:45
+C050,Ximena Contreras Padilla,Calzada San Juan de Aragón 345 Col. Campestre Aragón CDMX,Terminal Aeropuerto T2,08:45

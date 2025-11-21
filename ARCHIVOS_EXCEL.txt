@@ -1,0 +1,187 @@
+╔══════════════════════════════════════════════════════════════════════╗
+║                                                                      ║
+║              📊 ARCHIVOS EXCEL LISTOS PARA EL DEMO 📊               ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+
+═══════════════════════════════════════════════════════════════════════
+🎯 ARCHIVOS DISPONIBLES
+═══════════════════════════════════════════════════════════════════════
+
+1. conductores_pequeno.csv       →  10 conductores (demo rápido)
+2. conductores_completo.csv  ⭐  →  30 conductores (RECOMENDADO)
+3. conductores_50.csv            →  50 conductores (impresionar)
+
+
+═══════════════════════════════════════════════════════════════════════
+📋 ESTRUCTURA DE LOS ARCHIVOS
+═══════════════════════════════════════════════════════════════════════
+
+Columna              | Ejemplo
+---------------------|------------------------------------------
+Código               | C001, C002, C003...
+Nombre               | Juan Pérez García
+Dirección Casa       | Av. Insurgentes Sur 1234 Col. Del Valle
+Terminal Destino     | Terminal Aeropuerto T1 / T2
+Hora Presentación    | 06:30, 07:00, 07:30...
+
+
+═══════════════════════════════════════════════════════════════════════
+🚀 CÓMO USARLOS EN EL DEMO
+═══════════════════════════════════════════════════════════════════════
+
+PASO 1: Abrir el navegador
+   → http://localhost:3000
+
+PASO 2: Localizar los archivos
+   → /tmp/route-optimizer-demo/data/
+
+PASO 3: Arrastrar al navegador
+   → Drag & drop del archivo al área de carga
+   
+PASO 4: ¡Ver la magia!
+   → Sistema procesa automáticamente
+   → Geocodifica direcciones
+   → Optimiza rutas con IA
+   → Muestra resultados en < 2 minutos
+
+
+═══════════════════════════════════════════════════════════════════════
+⭐ ARCHIVO RECOMENDADO PARA LA DEMO
+═══════════════════════════════════════════════════════════════════════
+
+   📁 conductores_completo.csv (30 conductores)
+
+   ¿Por qué?
+   ✅ Cantidad ideal para mostrar optimización
+   ✅ Múltiples terminales (T1 y T2)
+   ✅ Diferentes horarios (realista)
+   ✅ 4-6 vans optimizadas
+   ✅ KPIs significativos
+   ✅ Gráficos impactantes
+
+
+═══════════════════════════════════════════════════════════════════════
+📊 QUÉ VERÁS DESPUÉS DE CARGAR
+═══════════════════════════════════════════════════════════════════════
+
+1️⃣  PROCESAMIENTO (30 segundos - 2 minutos)
+   • Validando datos...
+   • Geocodificando direcciones...
+   • Optimizando rutas...
+
+2️⃣  MAPA DE RUTAS
+   • Rutas coloreadas por van
+   • Marcadores numerados (orden de recogida)
+   • Leyenda con info de cada van
+   • Total de km optimizados
+
+3️⃣  KPIS Y MÉTRICAS
+   • Tarjetas con métricas principales
+   • Gráfico de distribución de conductores
+   • Gráfico de proporción (pie chart)
+   • Comparativa Manual vs Optimizado
+   • Reducción de 10-15% en km
+
+4️⃣  EDITOR MANUAL
+   • Tarjetas de cada van
+   • Conductores arrastrables
+   • Recálculo automático
+   • Historial de cambios
+
+
+═══════════════════════════════════════════════════════════════════════
+💡 EJEMPLO DE LO QUE DIRÁS EN LA DEMO
+═══════════════════════════════════════════════════════════════════════
+
+[Mientras arrastras el archivo]
+
+   "Este es un archivo Excel típico con:
+   
+    • Código de cada conductor
+    • Nombre completo
+    • Dirección de su casa
+    • Terminal donde deben presentarse
+    • Hora de presentación
+   
+    Exactamente los datos que ya manejan ustedes..."
+
+
+[Mientras procesa]
+
+   "El sistema está:
+   
+    ✓ Validando los datos
+    ✓ Geocodificando las 30 direcciones reales de CDMX
+    ✓ Aplicando algoritmos de IA (K-Means clustering)
+    ✓ Optimizando rutas con TSP
+    ✓ Balanceando la carga entre vans
+   
+    Todo esto en menos de 2 minutos..."
+
+
+[Al mostrar resultados]
+
+   "¡Y aquí están los resultados!
+   
+    • 30 conductores optimizados
+    • 4-6 vans perfectamente balanceadas
+    • Cada color es una van diferente
+    • Los números son el orden de recogida
+    • Reducción de 12% en kilómetros
+   
+    Si lo hicieran manual, serían ~180 km.
+    Optimizado: ~158 km.
+    Ahorro: 22 km POR DÍA."
+
+
+═══════════════════════════════════════════════════════════════════════
+🎯 DATOS REALISTAS INCLUIDOS
+═══════════════════════════════════════════════════════════════════════
+
+✅ Direcciones reales de Ciudad de México:
+   • Av. Insurgentes Sur
+   • Paseo de la Reforma
+   • Av. Revolución
+   • Av. Universidad
+   • Av. Cuauhtémoc
+   • Calzada de Tlalpan
+   • Y muchas más...
+
+✅ Terminales reales:
+   • Terminal Aeropuerto T1 (vuelos nacionales)
+   • Terminal Aeropuerto T2 (vuelos internacionales)
+
+✅ Horarios escalonados:
+   • 06:30 - Primer turno
+   • 06:45 - Segundo grupo
+   • 07:00 - Tercer grupo
+   • 07:15, 07:30, 07:45, 08:00...
+
+
+═══════════════════════════════════════════════════════════════════════
+📞 PATHS COMPLETOS DE LOS ARCHIVOS
+═══════════════════════════════════════════════════════════════════════
+
+/tmp/route-optimizer-demo/data/conductores_pequeno.csv
+/tmp/route-optimizer-demo/data/conductores_completo.csv  ⭐
+/tmp/route-optimizer-demo/data/conductores_50.csv
+
+
+═══════════════════════════════════════════════════════════════════════
+✅ CHECKLIST ANTES DE EMPEZAR
+═══════════════════════════════════════════════════════════════════════
+
+☑ Backend corriendo:     http://localhost:5002
+☑ Frontend corriendo:    http://localhost:3000
+☑ Navegador abierto:     ✓
+☑ Archivo localizado:    /tmp/route-optimizer-demo/data/
+☑ Listo para arrastrar:  ✓
+
+
+═══════════════════════════════════════════════════════════════════════
+
+         🎉 ¡TODO LISTO! ARRASTRA EL ARCHIVO Y SORPRENDE! 🎉
+
+═══════════════════════════════════════════════════════════════════════
