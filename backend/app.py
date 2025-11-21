@@ -36,10 +36,11 @@ def calculate_distance(coord1, coord2):
     return geodesic((coord1['lat'], coord1['lng']), (coord2['lat'], coord2['lng'])).km
 
 def optimize_route_tsp(drivers):
-    """Simple greedy TSP algorithm for route optimization"""
+    """Improved TSP algorithm with 2-opt optimization"""
     if len(drivers) <= 1:
         return drivers
     
+    # Step 1: Greedy nearest neighbor
     route = [drivers[0]]
     remaining = drivers[1:]
     
@@ -50,6 +51,41 @@ def optimize_route_tsp(drivers):
         ))
         route.append(nearest)
         remaining.remove(nearest)
+    
+    # Step 2: 2-opt improvement (simple version)
+    improved = True
+    max_iterations = 50
+    iteration = 0
+    
+    while improved and iteration < max_iterations:
+        improved = False
+        iteration += 1
+        
+        for i in range(1, len(route) - 2):
+            for j in range(i + 1, len(route)):
+                if j - i == 1:
+                    continue
+                
+                # Calculate current distance
+                current_dist = (
+                    calculate_distance(route[i-1]['coordinates'], route[i]['coordinates']) +
+                    calculate_distance(route[j-1]['coordinates'], route[j % len(route)]['coordinates'])
+                )
+                
+                # Calculate distance after swap
+                new_dist = (
+                    calculate_distance(route[i-1]['coordinates'], route[j-1]['coordinates']) +
+                    calculate_distance(route[i]['coordinates'], route[j % len(route)]['coordinates'])
+                )
+                
+                # If improvement found, reverse the segment
+                if new_dist < current_dist:
+                    route[i:j] = reversed(route[i:j])
+                    improved = True
+                    break
+            
+            if improved:
+                break
     
     return route
 

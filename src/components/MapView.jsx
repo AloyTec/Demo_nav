@@ -20,7 +20,10 @@ const MapView = ({ data }) => {
   const [center, setCenter] = useState([-33.4489, -70.6693]); // Santiago de Chile default
 
   useEffect(() => {
+    console.log('MapView data:', data); // DEBUG
     if (data?.vans && data.vans.length > 0) {
+      console.log('First van:', data.vans[0]); // DEBUG
+      console.log('Route exists?', data.vans[0].route); // DEBUG
       const firstDriver = data.vans[0].drivers[0];
       if (firstDriver?.coordinates) {
         setCenter([firstDriver.coordinates.lat, firstDriver.coordinates.lng]);
@@ -54,14 +57,17 @@ const MapView = ({ data }) => {
           const color = COLORS[vanIndex % COLORS.length];
           
           return (
-            <React.Fragment key={vanIndex}>
-              {/* Route polyline */}
-              {van.route && (
+            <React.Fragment key={`van-${van.name}`}>
+              {/* Route polyline with improved styling */}
+              {van.route && van.route.length > 1 && (
                 <Polyline
                   positions={van.route.map(point => [point.lat, point.lng])}
                   color={color}
-                  weight={4}
-                  opacity={0.7}
+                  weight={3}
+                  opacity={0.8}
+                  dashArray="10, 5"
+                  lineJoin="round"
+                  lineCap="round"
                 />
               )}
 
@@ -69,48 +75,72 @@ const MapView = ({ data }) => {
               {van.drivers.map((driver, driverIndex) => {
                 if (!driver.coordinates) return null;
 
+                const isFirst = driverIndex === 0;
+                const isLast = driverIndex === van.drivers.length - 1;
+
                 const customIcon = L.divIcon({
                   className: 'custom-marker',
                   html: `
                     <div style="
-                      background-color: ${color};
-                      width: 32px;
-                      height: 32px;
+                      background: ${isFirst ? '#22C55E' : isLast ? '#EF4444' : color};
+                      width: ${isFirst || isLast ? '36px' : '30px'};
+                      height: ${isFirst || isLast ? '36px' : '30px'};
                       border-radius: 50%;
                       border: 3px solid white;
-                      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                      box-shadow: 0 3px 10px rgba(0,0,0,0.4);
                       display: flex;
                       align-items: center;
                       justify-content: center;
                       color: white;
                       font-weight: bold;
-                      font-size: 14px;
+                      font-size: ${isFirst || isLast ? '16px' : '13px'};
+                      transition: all 0.3s ease;
                     ">
-                      ${driverIndex + 1}
+                      ${isFirst ? '🏁' : isLast ? '🏁' : driverIndex + 1}
                     </div>
                   `,
-                  iconSize: [32, 32],
-                  iconAnchor: [16, 16],
+                  iconSize: [isFirst || isLast ? 36 : 30, isFirst || isLast ? 36 : 30],
+                  iconAnchor: [isFirst || isLast ? 18 : 15, isFirst || isLast ? 18 : 15],
                 });
 
                 return (
                   <Marker
-                    key={`${vanIndex}-${driverIndex}`}
+                    key={`${vanIndex}-${driver.code || driverIndex}`}
                     position={[driver.coordinates.lat, driver.coordinates.lng]}
                     icon={customIcon}
                   >
                     <Popup>
-                      <div className="p-2">
-                        <h3 className="font-bold text-lg">{driver.name}</h3>
-                        <p className="text-sm text-gray-600">{driver.address}</p>
-                        <p className="text-xs text-gray-500 mt-1">Orden: #{driverIndex + 1}</p>
-                        <p className="text-xs font-semibold" style={{ color }}>
-                          {van.name}
+                      <div className="p-2 min-w-[200px]">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="font-bold text-lg">{driver.name}</h3>
+                          <span 
+                            className="text-xs font-bold px-2 py-1 rounded"
+                            style={{ backgroundColor: color, color: 'white' }}
+                          >
+                            {van.name}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-1">
+                          📍 {driver.address}
                         </p>
+                        <p className="text-xs text-gray-500">
+                          🚩 Terminal: {driver.terminal}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          ⏰ Hora: {driver.time}
+                        </p>
+                        <div className="mt-2 pt-2 border-t border-gray-200">
+                          <p className="text-xs font-semibold text-gray-700">
+                            {isFirst ? '🏁 Inicio de ruta' : isLast ? '🏁 Fin de ruta' : `Parada #${driverIndex + 1}`}
+                          </p>
+                        </div>
                       </div>
                     </Popup>
-                    <Tooltip direction="top" offset={[0, -10]} opacity={0.9}>
-                      <span className="font-semibold">{driver.name}</span>
+                    <Tooltip direction="top" offset={[0, -15]} opacity={0.95}>
+                      <div className="text-center">
+                        <div className="font-bold">{driver.name}</div>
+                        <div className="text-xs">{isFirst ? 'Inicio' : isLast ? 'Fin' : `Parada ${driverIndex + 1}`}</div>
+                      </div>
                     </Tooltip>
                   </Marker>
                 );

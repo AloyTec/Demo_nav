@@ -16,3 +16,30 @@ body {
   width: 100%;
   z-index: 1;
 }
+
+/* Custom marker hover effect */
+.custom-marker:hover {
+  transform: scale(1.1);
+  cursor: pointer;
+}
+
+/* Polyline animation */
+@keyframes dash {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+.leaflet-interactive {
+  animation: dash 20s linear infinite;
+}
+
+/* Popup improvements */
+.leaflet-popup-content-wrapper {
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+}
+
+.leaflet-popup-tip {
+  box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+}
