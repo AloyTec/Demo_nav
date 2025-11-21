@@ -12,23 +12,25 @@ import time
 app = Flask(__name__)
 CORS(app)
 
-# Initialize geocoder
-geolocator = Nominatim(user_agent="route_optimizer_demo")
+# Initialize geocoder with longer timeout
+geolocator = Nominatim(user_agent="route_optimizer_demo_chile", timeout=10)
 
 def geocode_address(address):
     """Geocode an address to lat/lng coordinates"""
     try:
-        # Add Mexico City as context for better results
-        location = geolocator.geocode(f"{address}, Ciudad de México, México")
+        # Add Santiago, Chile as context for better results
+        location = geolocator.geocode(f"{address}, Santiago, Chile")
         if location:
+            print(f"✓ Geocoded: {address}")
             return {'lat': location.latitude, 'lng': location.longitude}
     except Exception as e:
         print(f"Geocoding error for {address}: {e}")
     
-    # Return random coordinates in Mexico City area as fallback
+    # Return random coordinates in Santiago, Chile area as fallback
+    print(f"⚠ Using fallback coordinates for: {address}")
     return {
-        'lat': 19.4326 + (random.random() - 0.5) * 0.1,
-        'lng': -99.1332 + (random.random() - 0.5) * 0.1
+        'lat': -33.4489 + (random.random() - 0.5) * 0.1,
+        'lng': -70.6693 + (random.random() - 0.5) * 0.1
     }
 
 def calculate_distance(coord1, coord2):
@@ -172,9 +174,10 @@ def optimize_routes():
         
         # Geocode all addresses
         print("Geocoding addresses...")
-        for driver in drivers:
+        for i, driver in enumerate(drivers):
+            print(f"Geocoding {i+1}/{len(drivers)}: {driver['address']}")
             driver['coordinates'] = geocode_address(driver['address'])
-            time.sleep(0.1)  # Rate limiting for geocoding
+            time.sleep(1.0)  # Rate limiting for Nominatim (1 request/second)
         
         # Determine optimal number of vans (assuming capacity of 8-12 per van)
         num_vans = max(2, min(5, len(drivers) // 10 + 1))

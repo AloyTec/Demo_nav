@@ -1,6 +1,7 @@
 {
   "name": "route-optimizer-demo",
   "version": "1.0.0",
+  "type": "module",
   "description": "Sistema de Optimización de Rutas para Transporte de Conductores",
   "scripts": {
     "dev": "vite",
