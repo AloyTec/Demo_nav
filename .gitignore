@@ -20,7 +20,9 @@ awscliv2.zip
 
 # Lambda deployment artifacts
 lambda-package/
+lambda-package-v2/
 lambda-docker/
 lambda-layer/
 layer/
 *.zip
+get-docker.sh
