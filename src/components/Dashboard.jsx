@@ -15,21 +15,38 @@ const Dashboard = ({ onDataUploaded, onOptimized, routeData }) => {
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      // Convert file to base64
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64Content = reader.result.split(',')[1]; // Remove data:*/*;base64, prefix
 
-      // Upload and parse file
-      const response = await axios.post(`${API_BASE_URL}/api/upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+        try {
+          // Upload and parse file
+          const response = await axios.post(`${API_BASE_URL}/api/upload`, {
+            file_content: base64Content,
+            filename: file.name
+          });
 
-      onDataUploaded(response.data);
-      
-      // Automatically trigger optimization
-      await handleOptimize(response.data);
-      
+          onDataUploaded(response.data);
+
+          // Automatically trigger optimization
+          await handleOptimize(response.data);
+
+        } catch (err) {
+          setError(err.response?.data?.error || 'Error al procesar el archivo');
+          setLoading(false);
+        }
+      };
+
+      reader.onerror = () => {
+        setError('Error al leer el archivo');
+        setLoading(false);
+      };
+
+      reader.readAsDataURL(file);
+
     } catch (err) {
-      setError(err.response?.data?.error || 'Error al procesar el archivo');
+      setError(err.message || 'Error al procesar el archivo');
       setLoading(false);
     }
   };
