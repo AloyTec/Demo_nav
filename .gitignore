@@ -10,3 +10,19 @@ __pycache__/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# AWS CLI installation files
+aws/
+awscliv2.zip
+
+# AWS credentials (never commit these!)
+.aws/
+
+# Lambda deployment artifacts
+lambda-package/
+lambda-package-v2/
+lambda-docker/
+lambda-layer/
+layer/
+*.zip
+get-docker.sh
