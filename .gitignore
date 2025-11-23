@@ -17,3 +17,10 @@ awscliv2.zip
 
 # AWS credentials (never commit these!)
 .aws/
+
+# Lambda deployment artifacts
+lambda-package/
+lambda-docker/
+lambda-layer/
+layer/
+*.zip
