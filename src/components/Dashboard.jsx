@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import FileUpload from './FileUpload';
 import axios from 'axios';
 import { Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { API_BASE_URL } from '../config/api';
 
 const Dashboard = ({ onDataUploaded, onOptimized, routeData }) => {
   const [loading, setLoading] = useState(false);
@@ -18,7 +19,7 @@ const Dashboard = ({ onDataUploaded, onOptimized, routeData }) => {
       formData.append('file', file);
 
       // Upload and parse file
-      const response = await axios.post('/api/upload', formData, {
+      const response = await axios.post(`${API_BASE_URL}/api/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
@@ -35,7 +36,7 @@ const Dashboard = ({ onDataUploaded, onOptimized, routeData }) => {
 
   const handleOptimize = async (data) => {
     try {
-      const response = await axios.post('/api/optimize', data || routeData);
+      const response = await axios.post(`${API_BASE_URL}/api/optimize`, data || routeData);
       onOptimized(response.data);
       setLoading(false);
     } catch (err) {
