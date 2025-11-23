@@ -125,7 +125,7 @@ function App() {
       )}
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto w-full">
+      <div className={`flex-1 overflow-auto w-full ${mobileMenuOpen ? 'pointer-events-none lg:pointer-events-auto' : ''}`}>
         {activeView === 'dashboard' && (
           <Dashboard
             onDataUploaded={handleDataUploaded}
