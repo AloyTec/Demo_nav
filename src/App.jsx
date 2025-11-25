@@ -135,7 +135,7 @@ function App() {
         )}
 
         {activeView === 'map' && optimizedData && (
-          <MapView data={optimizedData} />
+          <MapView data={optimizedData} mobileMenuOpen={mobileMenuOpen} />
         )}
 
         {activeView === 'kpis' && optimizedData && (
