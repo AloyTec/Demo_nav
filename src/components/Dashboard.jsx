@@ -8,11 +8,13 @@ const Dashboard = ({ onDataUploaded, onOptimized, routeData }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [uploadedFile, setUploadedFile] = useState(null);
+  const [progress, setProgress] = useState({ stage: '', percent: 0 });
 
   const handleFileUpload = async (file) => {
     setUploadedFile(file);
     setLoading(true);
     setError(null);
+    setProgress({ stage: 'Leyendo archivo...', percent: 10 });
 
     try {
       // Convert file to base64
@@ -22,12 +24,14 @@ const Dashboard = ({ onDataUploaded, onOptimized, routeData }) => {
 
         try {
           // Upload and parse file
+          setProgress({ stage: 'Subiendo y procesando datos...', percent: 25 });
           const response = await axios.post(`${API_BASE_URL}/api/upload`, {
             file_content: base64Content,
             filename: file.name
           });
 
           onDataUploaded(response.data);
+          setProgress({ stage: 'Datos procesados correctamente', percent: 50 });
 
           // Automatically trigger optimization
           await handleOptimize(response.data);
@@ -35,12 +39,14 @@ const Dashboard = ({ onDataUploaded, onOptimized, routeData }) => {
         } catch (err) {
           setError(err.response?.data?.error || 'Error al procesar el archivo');
           setLoading(false);
+          setProgress({ stage: '', percent: 0 });
         }
       };
 
       reader.onerror = () => {
         setError('Error al leer el archivo');
         setLoading(false);
+        setProgress({ stage: '', percent: 0 });
       };
 
       reader.readAsDataURL(file);
@@ -48,17 +54,34 @@ const Dashboard = ({ onDataUploaded, onOptimized, routeData }) => {
     } catch (err) {
       setError(err.message || 'Error al procesar el archivo');
       setLoading(false);
+      setProgress({ stage: '', percent: 0 });
     }
   };
 
   const handleOptimize = async (data) => {
     try {
+      setProgress({ stage: 'Geocodificando direcciones...', percent: 65 });
+
+      // Simulate geocoding progress (the actual work happens in Lambda)
+      setTimeout(() => {
+        setProgress({ stage: 'Optimizando rutas con algoritmos avanzados...', percent: 85 });
+      }, 1000);
+
       const response = await axios.post(`${API_BASE_URL}/api/optimize`, data || routeData);
+
+      setProgress({ stage: 'Finalizado! Preparando visualización...', percent: 100 });
       onOptimized(response.data);
-      setLoading(false);
+
+      // Clear progress after a short delay
+      setTimeout(() => {
+        setLoading(false);
+        setProgress({ stage: '', percent: 0 });
+      }, 800);
+
     } catch (err) {
       setError(err.response?.data?.error || 'Error al optimizar rutas');
       setLoading(false);
+      setProgress({ stage: '', percent: 0 });
     }
   };
 
@@ -77,9 +100,54 @@ const Dashboard = ({ onDataUploaded, onOptimized, routeData }) => {
           <FileUpload onFileUpload={handleFileUpload} disabled={loading} />
 
           {loading && (
-            <div className="mt-6 flex flex-col md:flex-row items-center justify-center gap-3 text-blue-600">
-              <Loader2 className="w-6 h-6 animate-spin" />
-              <span className="text-sm md:text-lg font-semibold text-center">Procesando y optimizando rutas...</span>
+            <div className="mt-6 space-y-4">
+              {/* Progress Bar */}
+              <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                <div
+                  className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500 ease-out"
+                  style={{ width: `${progress.percent}%` }}
+                />
+              </div>
+
+              {/* Progress Info */}
+              <div className="flex flex-col md:flex-row items-center justify-between gap-2">
+                <div className="flex items-center gap-3 text-blue-600">
+                  <Loader2 className="w-5 h-5 md:w-6 md:h-6 animate-spin" />
+                  <span className="text-sm md:text-base font-semibold">{progress.stage}</span>
+                </div>
+                <span className="text-xl md:text-2xl font-bold text-blue-600">{progress.percent}%</span>
+              </div>
+
+              {/* Processing Steps */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-2 md:gap-3 mt-4">
+                <div className={`flex items-center gap-2 p-2 md:p-3 rounded-lg transition-all ${progress.percent >= 10 ? 'bg-blue-50 text-blue-700' : 'bg-gray-50 text-gray-400'}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center ${progress.percent >= 10 ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-500'}`}>
+                    {progress.percent > 25 ? '✓' : '1'}
+                  </div>
+                  <span className="text-xs md:text-sm font-medium">Subiendo</span>
+                </div>
+
+                <div className={`flex items-center gap-2 p-2 md:p-3 rounded-lg transition-all ${progress.percent >= 50 ? 'bg-blue-50 text-blue-700' : 'bg-gray-50 text-gray-400'}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center ${progress.percent >= 50 ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-500'}`}>
+                    {progress.percent > 65 ? '✓' : '2'}
+                  </div>
+                  <span className="text-xs md:text-sm font-medium">Procesando</span>
+                </div>
+
+                <div className={`flex items-center gap-2 p-2 md:p-3 rounded-lg transition-all ${progress.percent >= 65 ? 'bg-blue-50 text-blue-700' : 'bg-gray-50 text-gray-400'}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center ${progress.percent >= 65 ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-500'}`}>
+                    {progress.percent > 85 ? '✓' : '3'}
+                  </div>
+                  <span className="text-xs md:text-sm font-medium">Geocodificando</span>
+                </div>
+
+                <div className={`flex items-center gap-2 p-2 md:p-3 rounded-lg transition-all ${progress.percent >= 85 ? 'bg-blue-50 text-blue-700' : 'bg-gray-50 text-gray-400'}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center ${progress.percent >= 85 ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-500'}`}>
+                    {progress.percent === 100 ? '✓' : '4'}
+                  </div>
+                  <span className="text-xs md:text-sm font-medium">Optimizando</span>
+                </div>
+              </div>
             </div>
           )}
 
