@@ -16,6 +16,8 @@ const COLORS = [
   '#EC4899', '#14B8A6', '#F97316', '#6366F1', '#84CC16'
 ];
 
+const BUS_COLOR = '#DC2626'; // Rojo distintivo para el bus
+
 const MapView = ({ data, mobileMenuOpen = false }) => {
   const [center, setCenter] = useState([-33.4489, -70.6693]); // Santiago de Chile default
 
@@ -54,8 +56,9 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
         />
 
         {data.vans.map((van, vanIndex) => {
-          const color = COLORS[vanIndex % COLORS.length];
-          
+          const isBus = van.is_bus === true;
+          const color = isBus ? BUS_COLOR : COLORS[vanIndex % COLORS.length];
+
           return (
             <React.Fragment key={`van-${van.name}`}>
               {/* Route polyline with improved styling */}
@@ -72,7 +75,7 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
               )}
 
               {/* Driver markers */}
-              {van.drivers.map((driver, driverIndex) => {
+              {!isBus && van.drivers.map((driver, driverIndex) => {
                 if (!driver.coordinates) return null;
 
                 const isFirst = driverIndex === 0;
@@ -145,6 +148,76 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
                   </Marker>
                 );
               })}
+
+              {/* Bus markers - show bus icon for bus routes */}
+              {isBus && van.route && van.route.map((point, pointIndex) => {
+                const isBusStop = pointIndex === 0; // First point is bus stop
+                const isTerminal = pointIndex === van.route.length - 1; // Last point is terminal
+
+                const busIcon = L.divIcon({
+                  className: 'custom-marker',
+                  html: `
+                    <div style="
+                      background: ${BUS_COLOR};
+                      width: 48px;
+                      height: 48px;
+                      border-radius: 50%;
+                      border: 4px solid white;
+                      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      font-size: 24px;
+                    ">
+                      ${isBusStop ? '🚏' : '🚌'}
+                    </div>
+                  `,
+                  iconSize: [48, 48],
+                  iconAnchor: [24, 24],
+                });
+
+                return (
+                  <Marker
+                    key={`bus-${vanIndex}-${pointIndex}`}
+                    position={[point.lat, point.lng]}
+                    icon={busIcon}
+                  >
+                    <Popup>
+                      <div className="p-2 min-w-[200px]">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="font-bold text-lg">{isBusStop ? '🚏 Punto de Encuentro' : '🚌 Terminal'}</h3>
+                          <span
+                            className="text-xs font-bold px-2 py-1 rounded"
+                            style={{ backgroundColor: BUS_COLOR, color: 'white' }}
+                          >
+                            BUS
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-2">
+                          {isBusStop ? 'Av. Pajaritos con Américo Vespucio' : van.destination}
+                        </p>
+                        <p className="text-xs text-gray-500 mb-1">
+                          👥 Pasajeros: {van.drivers.length}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          🚌 Capacidad: {van.capacity}
+                        </p>
+                        <div className="mt-2 pt-2 border-t border-gray-200">
+                          <p className="text-xs font-semibold text-red-700">
+                            {isBusStop ? 'Punto de transbordo desde vans' : 'Destino final'}
+                          </p>
+                        </div>
+                      </div>
+                    </Popup>
+                    <Tooltip direction="top" offset={[0, -24]} opacity={0.95}>
+                      <div className="text-center">
+                        <div className="font-bold">{isBusStop ? 'Bus Stop' : 'Terminal'}</div>
+                        <div className="text-xs">{van.drivers.length} pasajeros</div>
+                      </div>
+                    </Tooltip>
+                  </Marker>
+                );
+              })}
             </React.Fragment>
           );
         })}
@@ -152,22 +225,33 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
 
       {/* Legend */}
       <div className={`absolute top-4 right-4 bg-white rounded-lg shadow-xl p-4 z-[1000] max-h-96 overflow-y-auto transition-opacity duration-300 ${mobileMenuOpen ? 'opacity-0 pointer-events-none lg:opacity-100 lg:pointer-events-auto' : ''}`}>
-        <h3 className="font-bold text-lg mb-3">Rutas por Van</h3>
+        <h3 className="font-bold text-lg mb-3">Rutas por Vehículo</h3>
         <div className="space-y-2">
-          {data.vans.map((van, index) => (
-            <div key={index} className="flex items-center gap-2">
-              <div
-                className="w-4 h-4 rounded-full"
-                style={{ backgroundColor: COLORS[index % COLORS.length] }}
-              />
-              <div className="text-sm">
-                <p className="font-semibold">{van.name}</p>
-                <p className="text-gray-500">
-                  {van.drivers.length} conductores • {van.totalDistance?.toFixed(1)} km
-                </p>
+          {data.vans.map((van, index) => {
+            const isBus = van.is_bus === true;
+            const color = isBus ? BUS_COLOR : COLORS[index % COLORS.length];
+
+            return (
+              <div key={index} className="flex items-center gap-2">
+                {isBus ? (
+                  <div className="w-8 h-8 flex items-center justify-center text-xl">
+                    🚌
+                  </div>
+                ) : (
+                  <div
+                    className="w-4 h-4 rounded-full"
+                    style={{ backgroundColor: color }}
+                  />
+                )}
+                <div className="text-sm">
+                  <p className="font-semibold">{van.name}</p>
+                  <p className="text-gray-500">
+                    {van.drivers.length} {isBus ? 'pasajeros' : 'conductores'} • {van.totalDistance?.toFixed(1)} km
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
