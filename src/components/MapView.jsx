@@ -16,7 +16,7 @@ const COLORS = [
   '#EC4899', '#14B8A6', '#F97316', '#6366F1', '#84CC16'
 ];
 
-const MapView = ({ data }) => {
+const MapView = ({ data, mobileMenuOpen = false }) => {
   const [center, setCenter] = useState([-33.4489, -70.6693]); // Santiago de Chile default
 
   useEffect(() => {
@@ -151,7 +151,7 @@ const MapView = ({ data }) => {
       </MapContainer>
 
       {/* Legend */}
-      <div className="absolute top-4 right-4 bg-white rounded-lg shadow-xl p-4 z-[1000] max-h-96 overflow-y-auto">
+      <div className={`absolute top-4 right-4 bg-white rounded-lg shadow-xl p-4 z-[1000] max-h-96 overflow-y-auto transition-opacity duration-300 ${mobileMenuOpen ? 'opacity-0 pointer-events-none lg:opacity-100 lg:pointer-events-auto' : ''}`}>
         <h3 className="font-bold text-lg mb-3">Rutas por Van</h3>
         <div className="space-y-2">
           {data.vans.map((van, index) => (
@@ -172,7 +172,7 @@ const MapView = ({ data }) => {
       </div>
 
       {/* Stats overlay */}
-      <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-xl p-4 z-[1000]">
+      <div className={`absolute bottom-4 left-4 bg-white rounded-lg shadow-xl p-4 z-[1000] transition-opacity duration-300 ${mobileMenuOpen ? 'opacity-0 pointer-events-none lg:opacity-100 lg:pointer-events-auto' : ''}`}>
         <div className="grid grid-cols-3 gap-4 text-center">
           <div>
             <p className="text-2xl font-bold text-blue-600">{data.vans.length}</p>
