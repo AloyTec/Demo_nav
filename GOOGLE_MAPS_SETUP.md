@@ -14,10 +14,11 @@ Esta rama implementa rutas optimizadas por calles usando Google Maps Directions 
 
 1. Ve a [Google Cloud Console](https://console.cloud.google.com/)
 2. Crea un nuevo proyecto o selecciona uno existente
-3. Habilita la **Directions API**:
+3. Habilita la **Routes API** (la nueva API, no la vieja Directions API):
    - Ve a "APIs & Services" > "Library"
-   - Busca "Directions API"
+   - Busca "Routes API" (no "Directions API")
    - Click en "Enable"
+   - **IMPORTANTE**: Debe ser "Routes API", no "Directions API" (legacy)
 4. Crea una API key:
    - Ve a "APIs & Services" > "Credentials"
    - Click "Create Credentials" > "API Key"
@@ -27,7 +28,7 @@ Esta rama implementa rutas optimizadas por calles usando Google Maps Directions 
        - `https://demonav-pi.vercel.app/*`
        - `https://*.vercel.app/*`
        - `http://localhost:3000/*` (para desarrollo local)
-     - API restrictions: Solo "Directions API"
+     - API restrictions: Solo "Routes API"
 
 ### 2. Configurar Variables de Entorno
 
