@@ -164,7 +164,7 @@ export default async function handler(req, res) {
 
     // Extract distance and duration (NEW API format)
     const totalDistance = route.distanceMeters / 1000; // Convert meters to km
-    const totalDuration = parseInt(route.duration.replace('s', '')) / 60; // Convert seconds to minutes
+    const totalDuration = parseFloat(route.duration.replace('s', '')) / 60; // Convert seconds to minutes
 
     console.log(`✅ [API] Route calculated successfully:`);
     console.log(`   Distance: ${totalDistance.toFixed(1)} km`);
