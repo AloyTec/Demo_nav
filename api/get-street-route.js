@@ -6,6 +6,10 @@
  */
 
 export default async function handler(req, res) {
+  console.log('🚀 [API] get-street-route called');
+  console.log('   Method:', req.method);
+  console.log('   Headers:', req.headers);
+
   // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -14,38 +18,52 @@ export default async function handler(req, res) {
 
   // Handle preflight request
   if (req.method === 'OPTIONS') {
+    console.log('✅ [API] OPTIONS request handled');
     return res.status(200).end();
   }
 
   // Only allow POST requests
   if (req.method !== 'POST') {
+    console.error('❌ [API] Invalid method:', req.method);
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
 
   try {
+    console.log('📦 [API] Request body:', req.body);
     const { waypoints } = req.body;
 
     // Validate input
     if (!waypoints || !Array.isArray(waypoints) || waypoints.length < 2) {
+      console.error('❌ [API] Invalid waypoints:', waypoints);
       return res.status(400).json({
         error: 'Invalid waypoints. Must be an array with at least 2 points.'
       });
     }
 
+    console.log(`✅ [API] Validated ${waypoints.length} waypoints`);
+
     // Get API key from environment variables (secure!)
     const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
     if (!GOOGLE_MAPS_API_KEY) {
-      console.error('GOOGLE_MAPS_API_KEY not configured');
+      console.error('❌ [API] GOOGLE_MAPS_API_KEY not configured');
+      console.error('   Available env vars:', Object.keys(process.env).filter(k => k.includes('GOOGLE')));
       return res.status(500).json({
         error: 'Server configuration error: API key missing'
       });
     }
 
+    console.log('✅ [API] API key found (length:', GOOGLE_MAPS_API_KEY.length, ')');
+
     // Build Google Directions API request
     const origin = waypoints[0];
     const destination = waypoints[waypoints.length - 1];
     const waypointsMiddle = waypoints.slice(1, -1);
+
+    console.log('📍 [API] Route details:');
+    console.log('   Origin:', origin);
+    console.log('   Destination:', destination);
+    console.log('   Intermediate waypoints:', waypointsMiddle.length);
 
     // Construct URL for Google Directions API
     const params = new URLSearchParams({
@@ -67,39 +85,55 @@ export default async function handler(req, res) {
 
     const url = `https://maps.googleapis.com/maps/api/directions/json?${params.toString()}`;
 
-    console.log(`Fetching route for ${waypoints.length} waypoints...`);
+    console.log(`🌐 [API] Calling Google Maps API...`);
+    console.log(`   URL: ${url.substring(0, 100)}...`);
 
     // Call Google Maps API
     const response = await fetch(url);
+    console.log(`📥 [API] Google Maps response status: ${response.status}`);
+
     const data = await response.json();
+    console.log(`📦 [API] Google Maps response:`, JSON.stringify(data).substring(0, 200));
 
     // Check for errors
     if (data.status !== 'OK') {
-      console.error('Google Maps API error:', data.status, data.error_message);
+      console.error('❌ [API] Google Maps API error:', data.status, data.error_message);
       return res.status(500).json({
         error: `Google Maps API error: ${data.status}`,
         message: data.error_message
       });
     }
 
+    console.log('✅ [API] Google Maps API returned OK status');
+
     // Extract the route
     const route = data.routes[0];
 
     if (!route || !route.overview_polyline) {
+      console.error('❌ [API] No route found in response');
       return res.status(500).json({
         error: 'No route found'
       });
     }
 
+    console.log('✅ [API] Route found, decoding polyline...');
+
     // Decode polyline to coordinates
     const encodedPolyline = route.overview_polyline.points;
+    console.log(`   Encoded polyline length: ${encodedPolyline.length}`);
+
     const decodedCoords = decodePolyline(encodedPolyline);
+    console.log(`   Decoded ${decodedCoords.length} coordinate points`);
 
     // Extract distance and duration
     const totalDistance = route.legs.reduce((sum, leg) => sum + leg.distance.value, 0) / 1000; // km
     const totalDuration = route.legs.reduce((sum, leg) => sum + leg.duration.value, 0) / 60; // minutes
 
-    console.log(`✓ Route calculated: ${totalDistance.toFixed(1)} km, ${totalDuration.toFixed(0)} min`);
+    console.log(`✅ [API] Route calculated successfully:`);
+    console.log(`   Distance: ${totalDistance.toFixed(1)} km`);
+    console.log(`   Duration: ${totalDuration.toFixed(0)} min`);
+    console.log(`   Points: ${decodedCoords.length}`);
+    console.log(`   Summary: ${route.summary}`);
 
     // Return the street route
     return res.status(200).json({
@@ -111,10 +145,13 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('Error in get-street-route:', error);
+    console.error('❌ [API] Unexpected error in get-street-route:');
+    console.error('   Error:', error);
+    console.error('   Stack:', error.stack);
     return res.status(500).json({
       error: 'Internal server error',
-      message: error.message
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 }
