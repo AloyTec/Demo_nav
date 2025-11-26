@@ -65,83 +65,118 @@ export default async function handler(req, res) {
     console.log('   Destination:', destination);
     console.log('   Intermediate waypoints:', waypointsMiddle.length);
 
-    // Construct URL for Google Directions API
-    const params = new URLSearchParams({
-      origin: `${origin.lat},${origin.lng}`,
-      destination: `${destination.lat},${destination.lng}`,
-      mode: 'driving',
-      key: GOOGLE_MAPS_API_KEY,
-      language: 'es',
-      region: 'CL' // Chile
-    });
+    // Build request body for NEW Google Routes API (v2)
+    const requestBody = {
+      origin: {
+        location: {
+          latLng: {
+            latitude: origin.lat,
+            longitude: origin.lng
+          }
+        }
+      },
+      destination: {
+        location: {
+          latLng: {
+            latitude: destination.lat,
+            longitude: destination.lng
+          }
+        }
+      },
+      travelMode: 'DRIVE',
+      routingPreference: 'TRAFFIC_AWARE',
+      computeAlternativeRoutes: false,
+      languageCode: 'es',
+      units: 'METRIC'
+    };
 
     // Add intermediate waypoints if any
     if (waypointsMiddle.length > 0) {
-      const waypointsStr = waypointsMiddle
-        .map(w => `${w.lat},${w.lng}`)
-        .join('|');
-      params.append('waypoints', `optimize:false|${waypointsStr}`);
+      requestBody.intermediates = waypointsMiddle.map(w => ({
+        location: {
+          latLng: {
+            latitude: w.lat,
+            longitude: w.lng
+          }
+        }
+      }));
     }
 
-    const url = `https://maps.googleapis.com/maps/api/directions/json?${params.toString()}`;
+    const url = 'https://routes.googleapis.com/directions/v2:computeRoutes';
 
-    console.log(`🌐 [API] Calling Google Maps API...`);
-    console.log(`   URL: ${url.substring(0, 100)}...`);
+    console.log(`🌐 [API] Calling NEW Google Routes API v2...`);
+    console.log(`   Endpoint: ${url}`);
+    console.log(`   Waypoints: origin + ${waypointsMiddle.length} intermediates + destination`);
 
-    // Call Google Maps API
-    const response = await fetch(url);
-    console.log(`📥 [API] Google Maps response status: ${response.status}`);
+    // Call NEW Google Routes API with required headers
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,
+        'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline'
+      },
+      body: JSON.stringify(requestBody)
+    });
 
-    const data = await response.json();
-    console.log(`📦 [API] Google Maps response:`, JSON.stringify(data).substring(0, 200));
+    console.log(`📥 [API] Google Routes API response status: ${response.status}`);
 
-    // Check for errors
-    if (data.status !== 'OK') {
-      console.error('❌ [API] Google Maps API error:', data.status, data.error_message);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ [API] Google Routes API HTTP error:', response.status, errorText);
       return res.status(500).json({
-        error: `Google Maps API error: ${data.status}`,
-        message: data.error_message
+        error: `Google Routes API HTTP error: ${response.status}`,
+        message: errorText
       });
     }
 
-    console.log('✅ [API] Google Maps API returned OK status');
+    const data = await response.json();
+    console.log(`📦 [API] Google Routes API response:`, JSON.stringify(data).substring(0, 300));
 
-    // Extract the route
+    // Check if routes exist
+    if (!data.routes || data.routes.length === 0) {
+      console.error('❌ [API] No routes found in response');
+      return res.status(500).json({
+        error: 'No routes found'
+      });
+    }
+
+    console.log('✅ [API] Routes API returned routes successfully');
+
+    // Extract the first route
     const route = data.routes[0];
 
-    if (!route || !route.overview_polyline) {
-      console.error('❌ [API] No route found in response');
+    if (!route.polyline || !route.polyline.encodedPolyline) {
+      console.error('❌ [API] No polyline found in route');
       return res.status(500).json({
-        error: 'No route found'
+        error: 'No polyline found in route'
       });
     }
 
     console.log('✅ [API] Route found, decoding polyline...');
 
     // Decode polyline to coordinates
-    const encodedPolyline = route.overview_polyline.points;
+    const encodedPolyline = route.polyline.encodedPolyline;
     console.log(`   Encoded polyline length: ${encodedPolyline.length}`);
 
     const decodedCoords = decodePolyline(encodedPolyline);
     console.log(`   Decoded ${decodedCoords.length} coordinate points`);
 
-    // Extract distance and duration
-    const totalDistance = route.legs.reduce((sum, leg) => sum + leg.distance.value, 0) / 1000; // km
-    const totalDuration = route.legs.reduce((sum, leg) => sum + leg.duration.value, 0) / 60; // minutes
+    // Extract distance and duration (NEW API format)
+    const totalDistance = route.distanceMeters / 1000; // Convert meters to km
+    const totalDuration = parseInt(route.duration.replace('s', '')) / 60; // Convert seconds to minutes
 
     console.log(`✅ [API] Route calculated successfully:`);
     console.log(`   Distance: ${totalDistance.toFixed(1)} km`);
     console.log(`   Duration: ${totalDuration.toFixed(0)} min`);
     console.log(`   Points: ${decodedCoords.length}`);
-    console.log(`   Summary: ${route.summary}`);
 
     // Return the street route
     return res.status(200).json({
       success: true,
       route: decodedCoords,
       distance: totalDistance,
-      duration: totalDuration,
-      summary: route.summary
+      duration: totalDuration
     });
 
   } catch (error) {
