@@ -20,6 +20,9 @@ const BUS_COLOR = '#DC2626'; // Rojo distintivo para el bus
 
 const MapView = ({ data, mobileMenuOpen = false }) => {
   const [center, setCenter] = useState([-33.4489, -70.6693]); // Santiago de Chile default
+  const [streetRoutes, setStreetRoutes] = useState({}); // Rutas por calles desde Google Maps
+  const [loadingRoutes, setLoadingRoutes] = useState(false);
+  const [routeErrors, setRouteErrors] = useState({});
 
   useEffect(() => {
     console.log('MapView data:', data); // DEBUG
@@ -31,6 +34,64 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
         setCenter([firstDriver.coordinates.lat, firstDriver.coordinates.lng]);
       }
     }
+  }, [data]);
+
+  // Fetch street routes from Google Maps API via Vercel serverless function
+  useEffect(() => {
+    if (!data?.vans || data.vans.length === 0) return;
+
+    const fetchStreetRoutes = async () => {
+      setLoadingRoutes(true);
+      const newStreetRoutes = {};
+      const errors = {};
+
+      for (let i = 0; i < data.vans.length; i++) {
+        const van = data.vans[i];
+
+        // Only fetch routes for vans with at least 2 waypoints
+        if (!van.route || van.route.length < 2) {
+          continue;
+        }
+
+        try {
+          console.log(`Fetching street route for ${van.name}...`);
+
+          const response = await fetch('/api/get-street-route', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              waypoints: van.route
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const result = await response.json();
+
+          if (result.success && result.route) {
+            newStreetRoutes[i] = result.route;
+            console.log(`✓ Street route loaded for ${van.name}: ${result.distance.toFixed(1)} km`);
+          } else {
+            throw new Error(result.error || 'Unknown error');
+          }
+        } catch (error) {
+          console.error(`Error fetching street route for ${van.name}:`, error);
+          errors[i] = error.message;
+          // Fallback to original route
+          newStreetRoutes[i] = van.route;
+        }
+      }
+
+      setStreetRoutes(newStreetRoutes);
+      setRouteErrors(errors);
+      setLoadingRoutes(false);
+    };
+
+    fetchStreetRoutes();
   }, [data]);
 
   if (!data || !data.vans) {
@@ -59,16 +120,20 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
           const isBus = van.is_bus === true;
           const color = isBus ? BUS_COLOR : COLORS[vanIndex % COLORS.length];
 
+          // Use street route if available, otherwise use original route
+          const routeToDisplay = streetRoutes[vanIndex] || van.route;
+          const isStreetRoute = streetRoutes[vanIndex] && streetRoutes[vanIndex].length > van.route.length;
+
           return (
             <React.Fragment key={`van-${van.name}`}>
-              {/* Route polyline with improved styling */}
-              {van.route && van.route.length > 1 && (
+              {/* Route polyline - shows street route when available */}
+              {routeToDisplay && routeToDisplay.length > 1 && (
                 <Polyline
-                  positions={van.route.map(point => [point.lat, point.lng])}
+                  positions={routeToDisplay.map(point => [point.lat, point.lng])}
                   color={color}
-                  weight={3}
-                  opacity={0.8}
-                  dashArray="10, 5"
+                  weight={isStreetRoute ? 4 : 3}
+                  opacity={isStreetRoute ? 0.9 : 0.8}
+                  dashArray={isStreetRoute ? null : "10, 5"}
                   lineJoin="round"
                   lineCap="round"
                 />
@@ -225,7 +290,20 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
 
       {/* Legend */}
       <div className={`absolute top-4 right-4 bg-white rounded-lg shadow-xl p-4 z-[1000] max-h-96 overflow-y-auto transition-opacity duration-300 ${mobileMenuOpen ? 'opacity-0 pointer-events-none lg:opacity-100 lg:pointer-events-auto' : ''}`}>
-        <h3 className="font-bold text-lg mb-3">Rutas por Vehículo</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-bold text-lg">Rutas por Vehículo</h3>
+          {loadingRoutes && (
+            <div className="flex items-center gap-2 text-xs text-blue-600">
+              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
+              <span>Cargando rutas...</span>
+            </div>
+          )}
+          {!loadingRoutes && Object.keys(streetRoutes).length > 0 && (
+            <div className="text-xs text-green-600 font-semibold">
+              ✓ Rutas optimizadas
+            </div>
+          )}
+        </div>
         <div className="space-y-2">
           {data.vans.map((van, index) => {
             const isBus = van.is_bus === true;
