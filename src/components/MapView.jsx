@@ -38,7 +38,14 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
 
   // Fetch street routes from Google Maps API via Vercel serverless function
   useEffect(() => {
-    if (!data?.vans || data.vans.length === 0) return;
+    console.log('🔍 [MapView] useEffect triggered, data:', data);
+
+    if (!data?.vans || data.vans.length === 0) {
+      console.log('⚠️ [MapView] No vans data, skipping street routes');
+      return;
+    }
+
+    console.log(`🚀 [MapView] Starting to fetch street routes for ${data.vans.length} vans`);
 
     const fetchStreetRoutes = async () => {
       setLoadingRoutes(true);
@@ -50,11 +57,15 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
 
         // Only fetch routes for vans with at least 2 waypoints
         if (!van.route || van.route.length < 2) {
+          console.log(`⚠️ [MapView] Skipping ${van.name} - insufficient waypoints (${van.route?.length || 0})`);
           continue;
         }
 
         try {
-          console.log(`Fetching street route for ${van.name}...`);
+          console.log(`📡 [MapView] Fetching street route for ${van.name}...`);
+          console.log(`   Waypoints count: ${van.route.length}`);
+          console.log(`   First waypoint:`, van.route[0]);
+          console.log(`   Last waypoint:`, van.route[van.route.length - 1]);
 
           const response = await fetch('/api/get-street-route', {
             method: 'POST',
@@ -66,29 +77,46 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
             })
           });
 
+          console.log(`📥 [MapView] Response status for ${van.name}:`, response.status);
+
           if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const errorText = await response.text();
+            console.error(`❌ [MapView] HTTP error for ${van.name}:`, response.status, errorText);
+            throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
           }
 
           const result = await response.json();
+          console.log(`📦 [MapView] Response data for ${van.name}:`, result);
 
           if (result.success && result.route) {
             newStreetRoutes[i] = result.route;
-            console.log(`✓ Street route loaded for ${van.name}: ${result.distance.toFixed(1)} km`);
+            console.log(`✅ [MapView] Street route loaded for ${van.name}:`);
+            console.log(`   Original waypoints: ${van.route.length}`);
+            console.log(`   Street route points: ${result.route.length}`);
+            console.log(`   Distance: ${result.distance.toFixed(1)} km`);
+            console.log(`   Duration: ${result.duration.toFixed(0)} min`);
           } else {
+            console.error(`❌ [MapView] Invalid response for ${van.name}:`, result);
             throw new Error(result.error || 'Unknown error');
           }
         } catch (error) {
-          console.error(`Error fetching street route for ${van.name}:`, error);
+          console.error(`❌ [MapView] Error fetching street route for ${van.name}:`, error);
+          console.error(`   Error details:`, error.message);
           errors[i] = error.message;
           // Fallback to original route
           newStreetRoutes[i] = van.route;
+          console.log(`⚠️ [MapView] Using fallback route for ${van.name}`);
         }
       }
+
+      console.log('📊 [MapView] Final street routes loaded:', Object.keys(newStreetRoutes).length);
+      console.log('📊 [MapView] Errors:', errors);
 
       setStreetRoutes(newStreetRoutes);
       setRouteErrors(errors);
       setLoadingRoutes(false);
+
+      console.log('✅ [MapView] Street routes fetch completed');
     };
 
     fetchStreetRoutes();
@@ -123,6 +151,13 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
           // Use street route if available, otherwise use original route
           const routeToDisplay = streetRoutes[vanIndex] || van.route;
           const isStreetRoute = streetRoutes[vanIndex] && streetRoutes[vanIndex].length > van.route.length;
+
+          console.log(`🗺️ [Render] ${van.name}:`);
+          console.log(`   Has street route: ${!!streetRoutes[vanIndex]}`);
+          console.log(`   Is street route: ${isStreetRoute}`);
+          console.log(`   Original route length: ${van.route.length}`);
+          console.log(`   Display route length: ${routeToDisplay.length}`);
+          console.log(`   Line style: ${isStreetRoute ? 'SOLID (street)' : 'DASHED (straight)'}`);
 
           return (
             <React.Fragment key={`van-${van.name}`}>
