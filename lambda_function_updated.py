@@ -39,6 +39,35 @@ BUS_STOP_MAIPU = {
     'address': 'Punto de Encuentro - Av. Pajaritos con Américo Vespucio'
 }
 
+# Known terminal coordinates (to avoid geocoding errors)
+KNOWN_TERMINALS = {
+    'terminal conquistador': {
+        'lat': -33.5132,  # Av. 5 Poniente 1601, Maipú
+        'lng': -70.7591,
+        'address': 'Terminal Conquistador (Av. 5 Poniente 1601, Maipú)'
+    },
+    'terminal maipu': {
+        'lat': -33.5132,  # Same as Terminal Conquistador - most common terminal in Maipú
+        'lng': -70.7591,
+        'address': 'Terminal Maipú'
+    },
+    'terminal maipú': {
+        'lat': -33.5132,
+        'lng': -70.7591,
+        'address': 'Terminal Maipú'
+    },
+    'terminal aeropuerto t1': {
+        'lat': -33.3928,  # Aeropuerto Internacional Arturo Merino Benítez, Terminal 1
+        'lng': -70.7856,
+        'address': 'Terminal Aeropuerto T1'
+    },
+    'terminal aeropuerto t2': {
+        'lat': -33.3935,  # Terminal 2
+        'lng': -70.7865,
+        'address': 'Terminal Aeropuerto T2'
+    }
+}
+
 # Terminals that use bus mode
 TERMINALS_WITH_BUS = ['maipu', 'maipú', 'terminal maipu', 'terminal maipú']
 
@@ -46,12 +75,8 @@ TERMINALS_WITH_BUS = ['maipu', 'maipú', 'terminal maipu', 'terminal maipú']
 geolocator = Nominatim(user_agent="route_optimizer_demo_chile", timeout=10)
 
 def cors_headers():
-    """Return CORS headers for responses"""
-    return {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
-        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
-    }
+    """Return empty headers - CORS is handled by Lambda Function URL configuration"""
+    return {}
 
 def clean_address_for_geocoding(address):
     """
@@ -79,6 +104,30 @@ def clean_address_for_geocoding(address):
     address = ' '.join(address.split())
 
     return address
+
+def geocode_terminal(terminal_name):
+    """
+    Geocode a terminal, checking known terminals first
+
+    Args:
+        terminal_name: Terminal name (e.g., "Terminal Conquistador (Av. 5 Poniente 1601, Maipú)")
+
+    Returns:
+        Coordinates dict with lat/lng
+    """
+    # Normalize terminal name for lookup
+    # Extract terminal name before parentheses if present
+    terminal_lookup = terminal_name.split('(')[0].strip().lower()
+
+    # Check if this is a known terminal
+    if terminal_lookup in KNOWN_TERMINALS:
+        coords = KNOWN_TERMINALS[terminal_lookup]
+        print(f"  ✓ Using known coordinates for terminal: {terminal_name}")
+        return {'lat': coords['lat'], 'lng': coords['lng']}
+
+    # If not known, fall back to geocoding
+    print(f"  Terminal not in known list, geocoding: {terminal_name}")
+    return geocode_address(terminal_name)
 
 def geocode_address(address):
     """Geocode an address to lat/lng coordinates with multiple fallback strategies"""
@@ -678,7 +727,7 @@ def handle_optimize(event):
                 else:
                     terminal = driver.get('terminal', 'Terminal Aeropuerto T1')
 
-                terminal_coord = geocode_address(f"{terminal}, Santiago, Chile")
+                terminal_coord = geocode_terminal(terminal)
 
                 # Calculate distance to terminal
                 distance_to_terminal = calculate_distance(driver['coordinates'], terminal_coord)
@@ -700,7 +749,7 @@ def handle_optimize(event):
 
                 print(f"  → Distance: {driver['distance_to_terminal_km']} km, Travel time: {travel_time} min, Pickup by: {driver['pickup_time_latest']}, Present at: {driver['presentation_time']}")
 
-                time.sleep(1.0)  # Rate limiting
+                time.sleep(0.5)  # Rate limiting - reduced from 1.0 to 0.5 for faster processing
 
             # Sort drivers by presentation time (earliest first) within each terminal
             drivers_sorted = sorted(drivers, key=lambda d: d['presentation_time_minutes'])
@@ -720,7 +769,7 @@ def handle_optimize(event):
                 # Check if this terminal uses bus mode
                 if uses_bus_mode(terminal):
                     # BUS MODE: Use bus de acercamiento
-                    terminal_coord = geocode_address(f"{terminal}, Santiago, Chile")
+                    terminal_coord = geocode_terminal(terminal)
                     vans, distance = optimize_with_bus_mode(terminal_drivers, terminal, terminal_coord, num_vans_config)
                     all_vans.extend(vans)
                     total_distance += distance
