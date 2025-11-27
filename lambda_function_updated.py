@@ -25,6 +25,13 @@ table = dynamodb.Table(TABLE_NAME)
 VAN_CAPACITY = 10  # Capacidad máxima por van
 BUS_CAPACITY = 40  # Capacidad del bus de acercamiento
 
+# Travel Time Estimation Configuration
+CITY_SPEED_KMH = 60  # Promedio entre 50-70 km/h para ciudad
+HIGHWAY_SPEED_KMH = 105  # Promedio entre 90-120 km/h para autopista
+CITY_DISTANCE_THRESHOLD = 15  # km - distancias < 15km se consideran ciudad
+SAFETY_BUFFER = 1.2  # 20% buffer de seguridad
+PICKUP_TIME_MINUTES = 5  # Tiempo estimado de recogida por pasajero
+
 # Terminal Maipú - Bus stop location (fixed location near the terminal)
 BUS_STOP_MAIPU = {
     'lat': -33.5115,  # Cerca del terminal Maipú
@@ -66,6 +73,94 @@ def geocode_address(address):
 def calculate_distance(coord1, coord2):
     """Calculate distance between two coordinates in km"""
     return geodesic((coord1['lat'], coord1['lng']), (coord2['lat'], coord2['lng'])).km
+
+def estimate_travel_time(distance_km):
+    """
+    Estimate travel time in minutes based on distance
+
+    Args:
+        distance_km: Distance in kilometers
+
+    Returns:
+        Estimated travel time in minutes (includes 20% safety buffer)
+    """
+    # Determine speed based on distance (shorter = city, longer = highway)
+    if distance_km < CITY_DISTANCE_THRESHOLD:
+        speed_kmh = CITY_SPEED_KMH
+    else:
+        # Mixed: use weighted average (70% highway, 30% city)
+        speed_kmh = (HIGHWAY_SPEED_KMH * 0.7) + (CITY_SPEED_KMH * 0.3)
+
+    # Calculate base travel time in hours, then convert to minutes
+    travel_time_hours = distance_km / speed_kmh
+    travel_time_minutes = travel_time_hours * 60
+
+    # Apply safety buffer (20%)
+    travel_time_with_buffer = travel_time_minutes * SAFETY_BUFFER
+
+    return round(travel_time_with_buffer, 1)
+
+def parse_presentation_time(time_str):
+    """
+    Parse time string to minutes since midnight
+
+    Args:
+        time_str: Time string in format "HH:MM" or "H:MM"
+
+    Returns:
+        Minutes since midnight (e.g., "06:30" -> 390)
+    """
+    try:
+        # Handle different time formats
+        time_str = str(time_str).strip()
+
+        # Split by colon
+        parts = time_str.split(':')
+        if len(parts) == 2:
+            hours = int(parts[0])
+            minutes = int(parts[1])
+            return hours * 60 + minutes
+        else:
+            # Default to 8:00 AM if parsing fails
+            print(f"Warning: Could not parse time '{time_str}', using 08:00")
+            return 8 * 60
+    except Exception as e:
+        print(f"Error parsing time '{time_str}': {e}, using 08:00")
+        return 8 * 60
+
+def calculate_pickup_time_window(presentation_time_str, travel_time_minutes):
+    """
+    Calculate the latest pickup time based on presentation time and travel time
+
+    Args:
+        presentation_time_str: Time string like "06:30"
+        travel_time_minutes: Estimated travel time in minutes
+
+    Returns:
+        dict with pickup_time (minutes since midnight) and presentation_time
+    """
+    presentation_minutes = parse_presentation_time(presentation_time_str)
+
+    # Latest pickup time = presentation time - travel time
+    pickup_minutes = presentation_minutes - travel_time_minutes
+
+    # Ensure pickup time is not negative (early morning edge case)
+    if pickup_minutes < 0:
+        pickup_minutes = 0
+
+    return {
+        'presentation_time_minutes': presentation_minutes,
+        'pickup_time_latest_minutes': pickup_minutes,
+        'travel_time_minutes': travel_time_minutes,
+        'presentation_time_str': format_minutes_to_time(presentation_minutes),
+        'pickup_time_latest_str': format_minutes_to_time(pickup_minutes)
+    }
+
+def format_minutes_to_time(minutes):
+    """Convert minutes since midnight to HH:MM format"""
+    hours = int(minutes // 60)
+    mins = int(minutes % 60)
+    return f"{hours:02d}:{mins:02d}"
 
 def optimize_route_tsp(drivers):
     """Improved TSP algorithm with 2-opt optimization"""
@@ -478,15 +573,44 @@ def handle_optimize(event):
         # Generate demo ID for tracking
         demo_id = str(uuid.uuid4())
 
-        # Geocode all addresses
-        print("Geocoding addresses...")
+        # Geocode all addresses and calculate travel times
+        print("Geocoding addresses and calculating travel times...")
         for i, driver in enumerate(drivers):
             print(f"Geocoding {i+1}/{len(drivers)}: {driver['address']}")
             driver['coordinates'] = geocode_address(driver['address'])
+
+            # Geocode terminal to calculate distance
+            terminal = driver.get('terminal', 'Terminal Aeropuerto T1')
+            terminal_coord = geocode_address(f"{terminal}, Santiago, Chile")
+
+            # Calculate distance to terminal
+            distance_to_terminal = calculate_distance(driver['coordinates'], terminal_coord)
+
+            # Estimate travel time
+            travel_time = estimate_travel_time(distance_to_terminal)
+
+            # Calculate pickup time window
+            presentation_time = driver.get('time', '08:00')
+            time_window = calculate_pickup_time_window(presentation_time, travel_time)
+
+            # Add timing information to driver
+            driver['distance_to_terminal_km'] = round(distance_to_terminal, 2)
+            driver['travel_time_minutes'] = travel_time
+            driver['presentation_time'] = time_window['presentation_time_str']
+            driver['presentation_time_minutes'] = time_window['presentation_time_minutes']
+            driver['pickup_time_latest'] = time_window['pickup_time_latest_str']
+            driver['pickup_time_latest_minutes'] = time_window['pickup_time_latest_minutes']
+
+            print(f"  → Distance: {driver['distance_to_terminal_km']} km, Travel time: {travel_time} min, Pickup by: {driver['pickup_time_latest']}, Present at: {driver['presentation_time']}")
+
             time.sleep(1.0)  # Rate limiting
 
-        # Group drivers by terminal
-        terminal_groups = group_drivers_by_terminal(drivers)
+        # Sort drivers by presentation time (earliest first) within each terminal
+        drivers_sorted = sorted(drivers, key=lambda d: d['presentation_time_minutes'])
+        print(f"\nDrivers sorted by presentation time (earliest: {drivers_sorted[0]['pickup_time_latest']}, latest: {drivers_sorted[-1]['pickup_time_latest']})")
+
+        # Group drivers by terminal (using sorted drivers)
+        terminal_groups = group_drivers_by_terminal(drivers_sorted)
 
         # Optimize each terminal group
         all_vans = []
