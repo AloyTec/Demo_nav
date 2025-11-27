@@ -329,7 +329,7 @@ def group_drivers_by_terminal(drivers):
         terminal_groups[terminal].append(driver)
     return terminal_groups
 
-def optimize_with_bus_mode(drivers, terminal, terminal_coord):
+def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=None):
     """
     Optimize routes using bus de acercamiento mode
 
@@ -341,7 +341,12 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord):
     print(f"Using BUS MODE for {len(drivers)} drivers to {terminal}")
 
     # Determine number of vans needed
-    num_vans = max(2, min(5, len(drivers) // 10 + 1))
+    if num_vans_override is not None:
+        num_vans = num_vans_override
+        print(f"Using configured number of vans: {num_vans}")
+    else:
+        num_vans = max(2, min(5, len(drivers) // 10 + 1))
+        print(f"Auto-calculated number of vans: {num_vans}")
 
     # Cluster drivers using K-means
     print(f"Clustering into {num_vans} vans...")
@@ -641,146 +646,176 @@ def handle_optimize(event):
                 'body': json.dumps({'error': 'No drivers data provided'})
             }
 
-        # Generate demo ID for tracking
-        demo_id = str(uuid.uuid4())
+        # Get configuration parameters from request (with defaults)
+        config = data.get('config', {})
+        num_vans_config = config.get('numVans', None)  # None means auto-calculate
+        safety_margin_config = config.get('safetyMargin', 0.20)  # Default 20%
+        destination_terminal_config = config.get('destinationTerminal', None)  # None means use from data
 
-        # Geocode all addresses and calculate travel times
-        print("Geocoding addresses and calculating travel times...")
-        for i, driver in enumerate(drivers):
-            print(f"Geocoding {i+1}/{len(drivers)}: {driver['address']}")
-            driver['coordinates'] = geocode_address(driver['address'])
+        print(f"Configuration: num_vans={num_vans_config}, safety_margin={safety_margin_config}, terminal={destination_terminal_config}")
 
-            # Geocode terminal to calculate distance
-            terminal = driver.get('terminal', 'Terminal Aeropuerto T1')
-            terminal_coord = geocode_address(f"{terminal}, Santiago, Chile")
+        # Override SAFETY_BUFFER with user configuration
+        global SAFETY_BUFFER
+        original_safety_buffer = SAFETY_BUFFER
 
-            # Calculate distance to terminal
-            distance_to_terminal = calculate_distance(driver['coordinates'], terminal_coord)
+        try:
+            SAFETY_BUFFER = 1.0 + safety_margin_config
 
-            # Estimate travel time
-            travel_time = estimate_travel_time(distance_to_terminal)
+            # Generate demo ID for tracking
+            demo_id = str(uuid.uuid4())
 
-            # Calculate pickup time window
-            presentation_time = driver.get('time', '08:00')
-            time_window = calculate_pickup_time_window(presentation_time, travel_time)
+            # Geocode all addresses and calculate travel times
+            print("Geocoding addresses and calculating travel times...")
+            for i, driver in enumerate(drivers):
+                print(f"Geocoding {i+1}/{len(drivers)}: {driver['address']}")
+                driver['coordinates'] = geocode_address(driver['address'])
 
-            # Add timing information to driver
-            driver['distance_to_terminal_km'] = round(distance_to_terminal, 2)
-            driver['travel_time_minutes'] = travel_time
-            driver['presentation_time'] = time_window['presentation_time_str']
-            driver['presentation_time_minutes'] = time_window['presentation_time_minutes']
-            driver['pickup_time_latest'] = time_window['pickup_time_latest_str']
-            driver['pickup_time_latest_minutes'] = time_window['pickup_time_latest_minutes']
+                # Geocode terminal to calculate distance
+                # Override with configured terminal if provided
+                if destination_terminal_config:
+                    terminal = destination_terminal_config
+                    driver['terminal'] = terminal  # Update driver's terminal
+                else:
+                    terminal = driver.get('terminal', 'Terminal Aeropuerto T1')
 
-            print(f"  → Distance: {driver['distance_to_terminal_km']} km, Travel time: {travel_time} min, Pickup by: {driver['pickup_time_latest']}, Present at: {driver['presentation_time']}")
-
-            time.sleep(1.0)  # Rate limiting
-
-        # Sort drivers by presentation time (earliest first) within each terminal
-        drivers_sorted = sorted(drivers, key=lambda d: d['presentation_time_minutes'])
-        print(f"\nDrivers sorted by presentation time (earliest: {drivers_sorted[0]['pickup_time_latest']}, latest: {drivers_sorted[-1]['pickup_time_latest']})")
-
-        # Group drivers by terminal (using sorted drivers)
-        terminal_groups = group_drivers_by_terminal(drivers_sorted)
-
-        # Optimize each terminal group
-        all_vans = []
-        total_distance = 0
-        total_vans = 0
-
-        for terminal, terminal_drivers in terminal_groups.items():
-            print(f"\nProcessing {len(terminal_drivers)} drivers for terminal: {terminal}")
-
-            # Check if this terminal uses bus mode
-            if uses_bus_mode(terminal):
-                # BUS MODE: Use bus de acercamiento
                 terminal_coord = geocode_address(f"{terminal}, Santiago, Chile")
-                vans, distance = optimize_with_bus_mode(terminal_drivers, terminal, terminal_coord)
-                all_vans.extend(vans)
-                total_distance += distance
-                total_vans += len([v for v in vans if v.get('is_van', False)])
 
-            else:
-                # NORMAL MODE: Direct to terminal
-                num_vans = max(2, min(5, len(terminal_drivers) // 10 + 1))
+                # Calculate distance to terminal
+                distance_to_terminal = calculate_distance(driver['coordinates'], terminal_coord)
 
-                # Cluster drivers using K-means
-                print(f"Clustering into {num_vans} vans...")
-                coordinates = np.array([[d['coordinates']['lat'], d['coordinates']['lng']] for d in terminal_drivers])
-                kmeans = KMeans(n_clusters=num_vans, random_state=42, n_init=10)
-                labels = kmeans.fit_predict(coordinates)
+                # Estimate travel time
+                travel_time = estimate_travel_time(distance_to_terminal)
 
-                # Group drivers by cluster
-                clusters = [[] for _ in range(num_vans)]
-                for driver, label in zip(terminal_drivers, labels):
-                    clusters[label].append(driver)
+                # Calculate pickup time window
+                presentation_time = driver.get('time', '08:00')
+                time_window = calculate_pickup_time_window(presentation_time, travel_time)
 
-                # Balance load
-                clusters = balance_load(clusters)
+                # Add timing information to driver
+                driver['distance_to_terminal_km'] = round(distance_to_terminal, 2)
+                driver['travel_time_minutes'] = travel_time
+                driver['presentation_time'] = time_window['presentation_time_str']
+                driver['presentation_time_minutes'] = time_window['presentation_time_minutes']
+                driver['pickup_time_latest'] = time_window['pickup_time_latest_str']
+                driver['pickup_time_latest_minutes'] = time_window['pickup_time_latest_minutes']
 
-                # Optimize route for each van
-                for i, cluster in enumerate(clusters):
-                    if not cluster:
-                        continue
+                print(f"  → Distance: {driver['distance_to_terminal_km']} km, Travel time: {travel_time} min, Pickup by: {driver['pickup_time_latest']}, Present at: {driver['presentation_time']}")
 
-                    optimized_route = optimize_route_tsp(cluster)
+                time.sleep(1.0)  # Rate limiting
 
-                    route_distance = 0
-                    route_coordinates = []
+            # Sort drivers by presentation time (earliest first) within each terminal
+            drivers_sorted = sorted(drivers, key=lambda d: d['presentation_time_minutes'])
+            print(f"\nDrivers sorted by presentation time (earliest: {drivers_sorted[0]['pickup_time_latest']}, latest: {drivers_sorted[-1]['pickup_time_latest']})")
 
-                    for j in range(len(optimized_route)):
-                        route_coordinates.append(optimized_route[j]['coordinates'])
-                        if j > 0:
-                            route_distance += calculate_distance(
-                                optimized_route[j-1]['coordinates'],
-                                optimized_route[j]['coordinates']
-                            )
+            # Group drivers by terminal (using sorted drivers)
+            terminal_groups = group_drivers_by_terminal(drivers_sorted)
 
-                    total_distance += route_distance
+            # Optimize each terminal group
+            all_vans = []
+            total_distance = 0
+            total_vans = 0
 
-                    all_vans.append({
-                        'name': f'Van {total_vans + i + 1}',
-                        'drivers': optimized_route,
-                        'route': route_coordinates,
-                        'totalDistance': route_distance,
-                        'destination': terminal,
-                        'capacity': VAN_CAPACITY,
-                        'utilization': len(optimized_route) / VAN_CAPACITY * 100,
-                        'is_van': True
-                    })
+            for terminal, terminal_drivers in terminal_groups.items():
+                print(f"\nProcessing {len(terminal_drivers)} drivers for terminal: {terminal}")
 
-                total_vans += num_vans
+                # Check if this terminal uses bus mode
+                if uses_bus_mode(terminal):
+                    # BUS MODE: Use bus de acercamiento
+                    terminal_coord = geocode_address(f"{terminal}, Santiago, Chile")
+                    vans, distance = optimize_with_bus_mode(terminal_drivers, terminal, terminal_coord, num_vans_config)
+                    all_vans.extend(vans)
+                    total_distance += distance
+                    total_vans += len([v for v in vans if v.get('is_van', False)])
 
-        # Calculate metrics
-        manual_distance = total_distance * 1.12
-        distance_saved = ((manual_distance - total_distance) / manual_distance) * 100
+                else:
+                    # NORMAL MODE: Direct to terminal
+                    if num_vans_config is not None:
+                        num_vans = num_vans_config
+                        print(f"Using configured number of vans: {num_vans}")
+                    else:
+                        num_vans = max(2, min(5, len(terminal_drivers) // 10 + 1))
+                        print(f"Auto-calculated number of vans: {num_vans}")
 
-        result = {
-            'vans': all_vans,
-            'totalDrivers': len(drivers),
-            'totalDistance': total_distance,
-            'distanceSavedPercent': round(distance_saved, 1),
-            'timeSaved': '15-20',
-            'optimizationTime': '< 2 min',
-            'success': True,
-            'demoId': demo_id,
-            'usingBusMode': any(v.get('is_bus', False) for v in all_vans)
-        }
+                    # Cluster drivers using K-means
+                    print(f"Clustering into {num_vans} vans...")
+                    coordinates = np.array([[d['coordinates']['lat'], d['coordinates']['lng']] for d in terminal_drivers])
+                    kmeans = KMeans(n_clusters=num_vans, random_state=42, n_init=10)
+                    labels = kmeans.fit_predict(coordinates)
 
-        # Track demo usage
-        track_demo_usage(demo_id, {
-            'drivers_count': len(drivers),
-            'vans_count': total_vans,
-            'total_distance': total_distance,
-            'bus_mode': result['usingBusMode']
-        })
+                    # Group drivers by cluster
+                    clusters = [[] for _ in range(num_vans)]
+                    for driver, label in zip(terminal_drivers, labels):
+                        clusters[label].append(driver)
 
-        print(f"Optimization complete: {total_vans} vans, {total_distance:.1f} km total")
-        return {
-            'statusCode': 200,
-            'headers': cors_headers(),
-            'body': json.dumps(result)
-        }
+                    # Balance load
+                    clusters = balance_load(clusters)
+
+                    # Optimize route for each van
+                    for i, cluster in enumerate(clusters):
+                        if not cluster:
+                            continue
+
+                        optimized_route = optimize_route_tsp(cluster)
+
+                        route_distance = 0
+                        route_coordinates = []
+
+                        for j in range(len(optimized_route)):
+                            route_coordinates.append(optimized_route[j]['coordinates'])
+                            if j > 0:
+                                route_distance += calculate_distance(
+                                    optimized_route[j-1]['coordinates'],
+                                    optimized_route[j]['coordinates']
+                                )
+
+                        total_distance += route_distance
+
+                        all_vans.append({
+                            'name': f'Van {total_vans + i + 1}',
+                            'drivers': optimized_route,
+                            'route': route_coordinates,
+                            'totalDistance': route_distance,
+                            'destination': terminal,
+                            'capacity': VAN_CAPACITY,
+                            'utilization': len(optimized_route) / VAN_CAPACITY * 100,
+                            'is_van': True
+                        })
+
+                    total_vans += num_vans
+
+            # Calculate metrics
+            manual_distance = total_distance * 1.12
+            distance_saved = ((manual_distance - total_distance) / manual_distance) * 100
+
+            result = {
+                'vans': all_vans,
+                'totalDrivers': len(drivers),
+                'totalDistance': total_distance,
+                'distanceSavedPercent': round(distance_saved, 1),
+                'timeSaved': '15-20',
+                'optimizationTime': '< 2 min',
+                'success': True,
+                'demoId': demo_id,
+                'usingBusMode': any(v.get('is_bus', False) for v in all_vans)
+            }
+
+            # Track demo usage
+            track_demo_usage(demo_id, {
+                'drivers_count': len(drivers),
+                'vans_count': total_vans,
+                'total_distance': total_distance,
+                'bus_mode': result['usingBusMode']
+            })
+
+            print(f"Optimization complete: {total_vans} vans, {total_distance:.1f} km total")
+            return {
+                'statusCode': 200,
+                'headers': cors_headers(),
+                'body': json.dumps(result)
+            }
+
+        finally:
+            # Restore original SAFETY_BUFFER
+            SAFETY_BUFFER = original_safety_buffer
 
     except Exception as e:
         print(f"Optimization error: {e}")
