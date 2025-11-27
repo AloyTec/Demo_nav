@@ -313,23 +313,30 @@ def handle_upload(event):
         if file_ext.endswith('.csv'):
             # Try to auto-detect delimiter (comma or semicolon)
             try:
-                # First try: Read with auto-detection
-                df = pd.read_csv(BytesIO(file_content), sep=None, engine='python')
+                # First, peek at the first line to check for "Table 1" header
+                first_line = file_content.decode('utf-8').split('\n')[0].strip()
+                print(f"First line of CSV: {first_line}")
 
-                # Check if first row is "Table 1" (Excel export header)
-                if len(df) > 0 and str(df.iloc[0, 0]).strip() == 'Table 1':
-                    print("Detected 'Table 1' header, re-reading file...")
-                    # Re-read skipping the first row
-                    df = pd.read_csv(BytesIO(file_content), sep=';', skiprows=1)
+                skip_rows = 0
+                if first_line == 'Table 1':
+                    print("Detected 'Table 1' header, will skip first row")
+                    skip_rows = 1
+
+                # Try to read with auto-detection
+                df = pd.read_csv(BytesIO(file_content), sep=None, engine='python', skiprows=skip_rows)
+
+                # If columns look wrong (like ['Table', '1']), try with semicolon delimiter
+                if len(df.columns) <= 2 or 'Table' in df.columns:
+                    print("Column detection looks wrong, forcing semicolon delimiter...")
+                    df = pd.read_csv(BytesIO(file_content), sep=';', skiprows=skip_rows)
 
             except Exception as e:
                 print(f"Auto-detection failed: {e}, trying semicolon...")
                 # Fallback to semicolon
-                df = pd.read_csv(BytesIO(file_content), sep=';')
-
-                # Check for Table 1 header
-                if len(df) > 0 and str(df.iloc[0, 0]).strip() == 'Table 1':
+                try:
                     df = pd.read_csv(BytesIO(file_content), sep=';', skiprows=1)
+                except:
+                    df = pd.read_csv(BytesIO(file_content), sep=';')
         else:
             df = pd.read_excel(BytesIO(file_content))
 
