@@ -338,7 +338,15 @@ def handle_upload(event):
                 except:
                     df = pd.read_csv(BytesIO(file_content), sep=';')
         else:
-            df = pd.read_excel(BytesIO(file_content))
+            # Excel files (.xls or .xlsx)
+            if file_ext.endswith('.xls') and not file_ext.endswith('.xlsx'):
+                # Old Excel format (.xls) - use xlrd
+                print("Detected .xls file, using xlrd engine")
+                df = pd.read_excel(BytesIO(file_content), engine='xlrd')
+            else:
+                # Modern Excel format (.xlsx) - use openpyxl (default)
+                print("Detected .xlsx file, using openpyxl engine")
+                df = pd.read_excel(BytesIO(file_content))
 
         # Clean column names (remove extra spaces)
         df.columns = df.columns.str.strip()
