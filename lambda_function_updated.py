@@ -34,9 +34,9 @@ PICKUP_TIME_MINUTES = 5  # Tiempo estimado de recogida por pasajero
 
 # Terminal Maipú - Bus stop location (fixed location near the terminal)
 BUS_STOP_MAIPU = {
-    'lat': -33.48266,  # Mall Arauco Maipú - Av. Pajaritos con Américo Vespucio
-    'lng': -70.75079,
-    'address': 'Punto de Encuentro - Av. Pajaritos con Américo Vespucio'
+    'lat': -33.48343,  # Av. Departamental esq Av. Pedro Aguirre Cerda (Metro Cerrillos)
+    'lng': -70.69556,
+    'address': 'Punto de Encuentro - Av. Departamental esq Av. Pedro Aguirre Cerda'
 }
 
 # Known terminal coordinates (to avoid geocoding errors)
