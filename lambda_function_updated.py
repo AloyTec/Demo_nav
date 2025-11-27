@@ -53,18 +53,89 @@ def cors_headers():
         'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
     }
 
+def clean_address_for_geocoding(address):
+    """
+    Clean and format address for better geocoding results
+
+    Common issues in Chilean addresses:
+    - "Calle # 1234" → "Calle 1234"
+    - "Calle; Dpto 301" → "Calle"
+    - "Av.Pajaritos" → "Avenida Pajaritos"
+    """
+    import re
+
+    # Remove department/apartment info (after semicolon or "Dpto")
+    address = re.split(r';|,\s*Dpto|,\s*Depto', address)[0].strip()
+
+    # Remove "#" symbol
+    address = address.replace(' # ', ' ').replace(' #', ' ')
+
+    # Expand common abbreviations
+    address = address.replace('Av.', 'Avenida ')
+    address = address.replace('Pje.', 'Pasaje ')
+    address = address.replace('Psje.', 'Pasaje ')
+
+    # Remove extra spaces
+    address = ' '.join(address.split())
+
+    return address
+
 def geocode_address(address):
-    """Geocode an address to lat/lng coordinates"""
+    """Geocode an address to lat/lng coordinates with multiple fallback strategies"""
+
+    # Clean the address first
+    cleaned_address = clean_address_for_geocoding(address)
+
+    # Extract comuna if present (after last comma)
+    parts = cleaned_address.rsplit(',', 1)
+    base_address = parts[0].strip()
+    comuna = parts[1].strip() if len(parts) > 1 else None
+
+    # Strategy 1: Try full cleaned address
     try:
-        location = geolocator.geocode(f"{address}, Santiago, Chile")
+        query = f"{cleaned_address}, Santiago, Chile"
+        print(f"  Trying: {query}")
+        location = geolocator.geocode(query, timeout=10)
         if location:
-            print(f"✓ Geocoded: {address}")
+            print(f"  ✓ Geocoded with full address: {cleaned_address}")
             return {'lat': location.latitude, 'lng': location.longitude}
     except Exception as e:
-        print(f"Geocoding error for {address}: {e}")
+        print(f"  Strategy 1 failed: {e}")
 
-    # Fallback to random coordinates in Santiago area
-    print(f"⚠ Using fallback coordinates for: {address}")
+    # Strategy 2: Try without number (just street and comuna)
+    if base_address and comuna:
+        try:
+            # Remove numbers from address
+            import re
+            street_only = re.sub(r'\d+', '', base_address).strip()
+            query = f"{street_only}, {comuna}, Santiago, Chile"
+            print(f"  Trying: {query}")
+            location = geolocator.geocode(query, timeout=10)
+            if location:
+                print(f"  ✓ Geocoded with street only: {street_only}, {comuna}")
+                return {'lat': location.latitude, 'lng': location.longitude}
+        except Exception as e:
+            print(f"  Strategy 2 failed: {e}")
+
+    # Strategy 3: Try just the comuna
+    if comuna:
+        try:
+            query = f"{comuna}, Santiago, Chile"
+            print(f"  Trying: {query}")
+            location = geolocator.geocode(query, timeout=10)
+            if location:
+                print(f"  ⚠ Using comuna center: {comuna}")
+                # Add small random offset to avoid all addresses in same comuna overlapping
+                return {
+                    'lat': location.latitude + (random.random() - 0.5) * 0.01,
+                    'lng': location.longitude + (random.random() - 0.5) * 0.01
+                }
+        except Exception as e:
+            print(f"  Strategy 3 failed: {e}")
+
+    # Fallback: Use Santiago center with warning
+    print(f"  ❌ GEOCODING FAILED for: {address}")
+    print(f"  ⚠ Using Santiago center as fallback")
     return {
         'lat': -33.4489 + (random.random() - 0.5) * 0.1,
         'lng': -70.6693 + (random.random() - 0.5) * 0.1
