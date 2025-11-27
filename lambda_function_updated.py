@@ -696,7 +696,7 @@ def handle_optimize(event):
 
                 print(f"  → Distance: {driver['distance_to_terminal_km']} km, Travel time: {travel_time} min, Pickup by: {driver['pickup_time_latest']}, Present at: {driver['presentation_time']}")
 
-                time.sleep(1.0)  # Rate limiting
+                time.sleep(0.5)  # Rate limiting - reduced from 1.0 to 0.5 for faster processing
 
             # Sort drivers by presentation time (earliest first) within each terminal
             drivers_sorted = sorted(drivers, key=lambda d: d['presentation_time_minutes'])
