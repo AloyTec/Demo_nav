@@ -46,12 +46,8 @@ TERMINALS_WITH_BUS = ['maipu', 'maipú', 'terminal maipu', 'terminal maipú']
 geolocator = Nominatim(user_agent="route_optimizer_demo_chile", timeout=10)
 
 def cors_headers():
-    """Return CORS headers for responses"""
-    return {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
-        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
-    }
+    """Return empty headers - CORS is handled by Lambda Function URL configuration"""
+    return {}
 
 def clean_address_for_geocoding(address):
     """
