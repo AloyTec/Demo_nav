@@ -10,6 +10,11 @@ const Dashboard = ({ onDataUploaded, onOptimized, routeData }) => {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [progress, setProgress] = useState({ stage: '', percent: 0 });
 
+  // Configuration parameters
+  const [numVans, setNumVans] = useState(3);
+  const [safetyMargin, setSafetyMargin] = useState(20);
+  const [destinationTerminal, setDestinationTerminal] = useState('Terminal Conquistador (Av. 5 Poniente 1601, Maipú)');
+
   const handleFileUpload = async (file) => {
     setUploadedFile(file);
     setLoading(true);
@@ -67,7 +72,17 @@ const Dashboard = ({ onDataUploaded, onOptimized, routeData }) => {
         setProgress({ stage: 'Optimizando rutas con algoritmos avanzados...', percent: 85 });
       }, 1000);
 
-      const response = await axios.post(`${API_BASE_URL}/api/optimize`, data || routeData);
+      // Include configuration parameters in the request
+      const optimizationData = {
+        ...(data || routeData),
+        config: {
+          numVans: numVans,
+          safetyMargin: safetyMargin / 100, // Convert percentage to decimal
+          destinationTerminal: destinationTerminal
+        }
+      };
+
+      const response = await axios.post(`${API_BASE_URL}/api/optimize`, optimizationData);
 
       setProgress({ stage: 'Finalizado! Preparando visualización...', percent: 100 });
       onOptimized(response.data);
@@ -95,8 +110,90 @@ const Dashboard = ({ onDataUploaded, onOptimized, routeData }) => {
           Carga tu archivo Excel con las direcciones de conductores para optimizar las rutas
         </p>
 
+        {/* Configuration Section */}
+        <div className="bg-white rounded-xl shadow-lg p-4 md:p-8 mb-6">
+          <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-2">
+            ⚙️ Configuración de Rutas
+          </h2>
+          <p className="text-sm md:text-base text-gray-600 mb-6">
+            Ajusta los parámetros antes de cargar el archivo
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Number of Vans */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Cantidad de Vans
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                value={numVans}
+                onChange={(e) => setNumVans(parseInt(e.target.value) || 1)}
+                disabled={loading}
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed text-lg font-semibold"
+              />
+              <p className="text-xs text-gray-500 mt-1">Entre 1 y 10 vans</p>
+            </div>
+
+            {/* Safety Margin */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Margen de Seguridad (%)
+              </label>
+              <select
+                value={safetyMargin}
+                onChange={(e) => setSafetyMargin(parseInt(e.target.value))}
+                disabled={loading}
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed text-lg font-semibold"
+              >
+                <option value="10">10% - Ajustado</option>
+                <option value="15">15% - Moderado</option>
+                <option value="20">20% - Recomendado</option>
+                <option value="25">25% - Conservador</option>
+                <option value="30">30% - Máximo</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Tiempo extra por imprevistos</p>
+            </div>
+
+            {/* Destination Terminal */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Terminal de Destino
+              </label>
+              <select
+                value={destinationTerminal}
+                onChange={(e) => setDestinationTerminal(e.target.value)}
+                disabled={loading}
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed text-lg font-semibold"
+              >
+                <option value="Terminal Conquistador (Av. 5 Poniente 1601, Maipú)">Terminal Conquistador</option>
+                <option value="Terminal Aeropuerto T1">Terminal Aeropuerto T1</option>
+                <option value="Terminal Aeropuerto T2">Terminal Aeropuerto T2</option>
+                <option value="Terminal Maipú">Terminal Maipú</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Punto de llegada final</p>
+            </div>
+          </div>
+
+          {/* Summary of Configuration */}
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
+            <p className="text-sm text-blue-800">
+              <span className="font-semibold">Configuración Actual:</span> {numVans} van{numVans > 1 ? 's' : ''} con {safetyMargin}% de margen hacia {destinationTerminal.split('(')[0].trim()}
+            </p>
+          </div>
+        </div>
+
         {/* Upload Section */}
         <div className="bg-white rounded-xl shadow-lg p-4 md:p-8 mb-6">
+          <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-2">
+            📂 Carga de Archivo
+          </h2>
+          <p className="text-sm md:text-base text-gray-600 mb-6">
+            Sube tu archivo Excel o CSV con las direcciones
+          </p>
+
           <FileUpload onFileUpload={handleFileUpload} disabled={loading} />
 
           {loading && (
