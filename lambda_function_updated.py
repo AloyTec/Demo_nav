@@ -34,26 +34,26 @@ PICKUP_TIME_MINUTES = 5  # Tiempo estimado de recogida por pasajero
 
 # Terminal Maipú - Bus stop location (fixed location near the terminal)
 BUS_STOP_MAIPU = {
-    'lat': -33.5115,  # Cerca del terminal Maipú
-    'lng': -70.7646,
+    'lat': -33.48266,  # Mall Arauco Maipú - Av. Pajaritos con Américo Vespucio
+    'lng': -70.75079,
     'address': 'Punto de Encuentro - Av. Pajaritos con Américo Vespucio'
 }
 
 # Known terminal coordinates (to avoid geocoding errors)
 KNOWN_TERMINALS = {
     'terminal conquistador': {
-        'lat': -33.5132,  # Av. 5 Poniente 1601, Maipú
-        'lng': -70.7591,
+        'lat': -33.51505,  # Av. 5 Poniente 1601, Maipú
+        'lng': -70.8044,
         'address': 'Terminal Conquistador (Av. 5 Poniente 1601, Maipú)'
     },
     'terminal maipu': {
-        'lat': -33.5132,  # Same as Terminal Conquistador - most common terminal in Maipú
-        'lng': -70.7591,
+        'lat': -33.51505,  # Same as Terminal Conquistador - most common terminal in Maipú
+        'lng': -70.8044,
         'address': 'Terminal Maipú'
     },
     'terminal maipú': {
-        'lat': -33.5132,
-        'lng': -70.7591,
+        'lat': -33.51505,
+        'lng': -70.8044,
         'address': 'Terminal Maipú'
     },
     'terminal aeropuerto t1': {
