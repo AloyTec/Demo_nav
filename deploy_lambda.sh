@@ -97,43 +97,8 @@ find . -type d -name "bin" -exec rm -rf {} + 2>/dev/null || true
 # Remove scipy test data
 find . -path "*/scipy/*/tests/data/*" -delete 2>/dev/null || true
 
-# Remove large scipy modules we don't use (keep only stats, spatial, sparse, linalg needed by sklearn)
-echo "  Removing unused scipy modules..."
-rm -rf ./scipy/fft 2>/dev/null || true
-rm -rf ./scipy/fftpack 2>/dev/null || true
-rm -rf ./scipy/signal 2>/dev/null || true
-rm -rf ./scipy/ndimage 2>/dev/null || true
-rm -rf ./scipy/interpolate 2>/dev/null || true
-rm -rf ./scipy/integrate 2>/dev/null || true
-rm -rf ./scipy/io 2>/dev/null || true
-rm -rf ./scipy/misc 2>/dev/null || true
-rm -rf ./scipy/odr 2>/dev/null || true
-rm -rf ./scipy/datasets 2>/dev/null || true
-
-# Remove unused sklearn modules (keep only cluster for KMeans)
-echo "  Removing unused sklearn modules..."
-rm -rf ./sklearn/neural_network 2>/dev/null || true
-rm -rf ./sklearn/svm 2>/dev/null || true
-rm -rf ./sklearn/tree 2>/dev/null || true
-rm -rf ./sklearn/ensemble 2>/dev/null || true
-rm -rf ./sklearn/linear_model 2>/dev/null || true
-rm -rf ./sklearn/manifold 2>/dev/null || true
-rm -rf ./sklearn/gaussian_process 2>/dev/null || true
-rm -rf ./sklearn/covariance 2>/dev/null || true
-rm -rf ./sklearn/cross_decomposition 2>/dev/null || true
-rm -rf ./sklearn/decomposition 2>/dev/null || true
-rm -rf ./sklearn/feature_extraction 2>/dev/null || true
-rm -rf ./sklearn/feature_selection 2>/dev/null || true
-rm -rf ./sklearn/naive_bayes 2>/dev/null || true
-rm -rf ./sklearn/calibration 2>/dev/null || true
-rm -rf ./sklearn/semi_supervised 2>/dev/null || true
-rm -rf ./sklearn/discriminant_analysis.py 2>/dev/null || true
-rm -rf ./sklearn/isotonic.py 2>/dev/null || true
-rm -rf ./sklearn/kernel_approximation.py 2>/dev/null || true
-rm -rf ./sklearn/kernel_ridge.py 2>/dev/null || true
-rm -rf ./sklearn/multiclass.py 2>/dev/null || true
-rm -rf ./sklearn/multioutput.py 2>/dev/null || true
-rm -rf ./sklearn/random_projection.py 2>/dev/null || true
+# Note: We don't remove scipy or sklearn modules due to complex internal dependencies
+# Instead, we focus on removing unnecessary files (already done above)
 
 # Strip debug symbols from .so files
 echo "  Stripping debug symbols from shared libraries..."
