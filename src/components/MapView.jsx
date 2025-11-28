@@ -294,7 +294,7 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
                           </span>
                         </div>
                         <p className="text-sm text-gray-600 mb-2">
-                          {isBusStop ? 'Av. Pajaritos con Américo Vespucio' : van.destination}
+                          {isBusStop ? 'Av. Departamental esq Av. Pedro Aguirre Cerda' : van.destination}
                         </p>
                         <p className="text-xs text-gray-500 mb-1">
                           👥 Pasajeros: {van.drivers.length}
