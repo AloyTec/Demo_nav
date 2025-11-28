@@ -33,7 +33,7 @@ mkdir -p $DEPLOY_DIR
 
 # Step 2: Install Python dependencies (using specific versions that work)
 echo -e "${YELLOW}[2/7] Installing Python dependencies...${NC}"
-echo "  Installing: pandas, numpy, geopy, scikit-learn, urllib3, openpyxl, xlrd"
+echo "  Installing: pandas, numpy, geopy, scikit-learn, urllib3, openpyxl, xlrd, ortools"
 pip install -t $DEPLOY_DIR \
     'pandas>=2.0,<2.4' \
     'numpy>=1.24,<1.27' \
@@ -42,6 +42,7 @@ pip install -t $DEPLOY_DIR \
     'urllib3>=2.0,<3.0' \
     'openpyxl>=3.0,<3.2' \
     'xlrd>=2.0,<2.1' \
+    'ortools>=9.8,<9.9' \
     --quiet --upgrade
 
 # Step 3: Copy Lambda function code
@@ -65,25 +66,46 @@ cd $DEPLOY_DIR
 find . -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true
 find . -type d -name "test" -exec rm -rf {} + 2>/dev/null || true
 find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+find . -type d -name "examples" -exec rm -rf {} + 2>/dev/null || true
+find . -type d -name "benchmarks" -exec rm -rf {} + 2>/dev/null || true
 
 # Remove unnecessary files
 find . -type f -name "*.pyc" -delete 2>/dev/null || true
 find . -type f -name "*.pyo" -delete 2>/dev/null || true
 find . -type f -name "*.pyx" -delete 2>/dev/null || true
 find . -type f -name "*.pxd" -delete 2>/dev/null || true
+find . -type f -name "*.pxi" -delete 2>/dev/null || true
 find . -type f -name "*.c" -delete 2>/dev/null || true
 find . -type f -name "*.cpp" -delete 2>/dev/null || true
 find . -type f -name "*.h" -delete 2>/dev/null || true
+find . -type f -name "*.hpp" -delete 2>/dev/null || true
+find . -type f -name "*.pyi" -delete 2>/dev/null || true
+find . -type f -name "*.typed" -delete 2>/dev/null || true
 
 # Remove documentation
 find . -type d -name "doc" -exec rm -rf {} + 2>/dev/null || true
 find . -type d -name "docs" -exec rm -rf {} + 2>/dev/null || true
 find . -type f -name "*.md" -delete 2>/dev/null || true
 find . -type f -name "*.rst" -delete 2>/dev/null || true
+find . -type f -name "*.txt" -delete 2>/dev/null || true
+find . -type f -name "LICENSE*" -delete 2>/dev/null || true
+find . -type f -name "COPYING*" -delete 2>/dev/null || true
+
+# Remove bin directories (executables not needed in Lambda)
+find . -type d -name "bin" -exec rm -rf {} + 2>/dev/null || true
+
+# Remove scipy test data
+find . -path "*/scipy/*/tests/data/*" -delete 2>/dev/null || true
+
+# Note: We don't remove scipy or sklearn modules due to complex internal dependencies
+# Instead, we focus on removing unnecessary files (already done above)
 
 # Strip debug symbols from .so files
 echo "  Stripping debug symbols from shared libraries..."
 find . -name "*.so" -type f -exec strip {} + 2>/dev/null || true
+
+# Remove .a files (static libraries)
+find . -type f -name "*.a" -delete 2>/dev/null || true
 
 cd ..
 
