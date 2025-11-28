@@ -384,7 +384,16 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
       <div className={`absolute bottom-4 left-4 bg-white rounded-lg shadow-xl p-4 z-[1000] transition-opacity duration-300 ${mobileMenuOpen ? 'opacity-0 pointer-events-none lg:opacity-100 lg:pointer-events-auto' : ''}`}>
         <div className="grid grid-cols-3 gap-4 text-center">
           <div>
-            <p className="text-2xl font-bold text-blue-600">{data.vans.length}</p>
+            <p className="text-2xl font-bold text-blue-600">
+              {
+                new Set(
+                  data.vans
+                    .filter(van => !van.name.toLowerCase().includes('bus'))
+                    .map(van => van.name.match(/Van\s+(\d+)/)?.[1])
+                    .filter(Boolean)
+                ).size
+              }
+            </p>
             <p className="text-xs text-gray-600">Vans</p>
           </div>
           <div>
