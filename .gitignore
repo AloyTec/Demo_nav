@@ -26,3 +26,6 @@ lambda-layer/
 layer/
 *.zip
 get-docker.sh
+package/
+*.zip
+current_lambda/
