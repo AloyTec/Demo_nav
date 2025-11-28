@@ -39,6 +39,12 @@ CITY_DISTANCE_THRESHOLD = 15  # km - distancias < 15km se consideran ciudad
 SAFETY_BUFFER = 1.2  # 20% buffer de seguridad
 PICKUP_TIME_MINUTES = 5  # Tiempo estimado de recogida por pasajero
 
+# Distance Calculation Strategy:
+# - Driver → Terminal: Uses Google Maps Distance Matrix API for REAL road distances
+# - Pickup → Pickup (TSP optimization): Uses geodesic (straight-line) for performance
+# - Bus Stop → Terminal: Uses Google Maps Distance Matrix API for REAL road distances
+# - Fallback: If API fails, uses geodesic distance + estimated travel time
+
 # Terminal Maipú - Bus stop location (fixed location near the terminal)
 BUS_STOP_MAIPU = {
     'lat': -33.48343,  # Av. Departamental esq Av. Pedro Aguirre Cerda (Metro Cerrillos)
@@ -284,13 +290,87 @@ def geocode_address(address):
         'lng': -70.6693 + (random.random() - 0.5) * 0.1
     }
 
+def get_route_distance_and_time(origin_coord, destination_coord):
+    """
+    Get real road distance and travel time using Google Maps Distance Matrix API
+
+    Args:
+        origin_coord: Dict with 'lat' and 'lng' keys
+        destination_coord: Dict with 'lat' and 'lng' keys
+
+    Returns:
+        Dict with 'distance_km' and 'duration_minutes', or None if API fails
+    """
+    if not GOOGLE_MAPS_API_KEY:
+        print(f"  ⚠ WARNING: GOOGLE_MAPS_API_KEY not configured, falling back to geodesic")
+        return None
+
+    try:
+        # Format coordinates for API
+        origin = f"{origin_coord['lat']},{origin_coord['lng']}"
+        destination = f"{destination_coord['lat']},{destination_coord['lng']}"
+
+        # Call Distance Matrix API
+        url = (
+            f"https://maps.googleapis.com/maps/api/distancematrix/json"
+            f"?origins={origin}"
+            f"&destinations={destination}"
+            f"&mode=driving"
+            f"&language=es"
+            f"&key={GOOGLE_MAPS_API_KEY}"
+        )
+
+        response = http.request('GET', url, timeout=10.0)
+
+        if response.status == 200:
+            data = json.loads(response.data.decode('utf-8'))
+
+            if data.get('status') == 'OK':
+                rows = data.get('rows', [])
+                if rows and len(rows) > 0:
+                    elements = rows[0].get('elements', [])
+                    if elements and len(elements) > 0:
+                        element = elements[0]
+
+                        if element.get('status') == 'OK':
+                            # Extract distance and duration
+                            distance_meters = element['distance']['value']
+                            duration_seconds = element['duration']['value']
+
+                            distance_km = distance_meters / 1000.0
+                            duration_minutes = duration_seconds / 60.0
+
+                            return {
+                                'distance_km': round(distance_km, 2),
+                                'duration_minutes': round(duration_minutes, 1)
+                            }
+                        else:
+                            print(f"  ⚠ Distance Matrix element status: {element.get('status')}")
+            else:
+                print(f"  ⚠ Distance Matrix API status: {data.get('status')}")
+        else:
+            print(f"  ⚠ Distance Matrix API HTTP error: {response.status}")
+
+    except Exception as e:
+        print(f"  ⚠ Distance Matrix API error: {e}")
+
+    return None
+
 def calculate_distance(coord1, coord2):
-    """Calculate distance between two coordinates in km"""
+    """
+    Calculate distance between two coordinates in km (geodesic/straight-line)
+
+    Note: This calculates straight-line distance, NOT road distance.
+    For road distance, use get_route_distance_and_time() instead.
+    """
     return geodesic((coord1['lat'], coord1['lng']), (coord2['lat'], coord2['lng'])).km
 
 def estimate_travel_time(distance_km):
     """
     Estimate travel time in minutes based on distance
+
+    NOTE: This is a fallback estimation. When possible, use get_route_distance_and_time()
+    to get real travel times from Google Maps Distance Matrix API.
 
     Args:
         distance_km: Distance in kilometers
@@ -484,11 +564,19 @@ def geocode_driver_parallel(driver_data):
     # Geocode terminal
     terminal_coord = geocode_terminal(terminal)
 
-    # Calculate distance to terminal
-    distance_to_terminal = calculate_distance(driver['coordinates'], terminal_coord)
+    # Get REAL road distance and travel time using Distance Matrix API
+    route_info = get_route_distance_and_time(driver['coordinates'], terminal_coord)
 
-    # Estimate travel time
-    travel_time = estimate_travel_time(distance_to_terminal)
+    if route_info:
+        # Use real road distance and time from Google Maps
+        distance_to_terminal = route_info['distance_km']
+        travel_time = route_info['duration_minutes']
+        print(f"  ✓ Real route: {distance_to_terminal} km, {travel_time} min (from Distance Matrix API)")
+    else:
+        # Fallback to geodesic distance if API fails
+        distance_to_terminal = calculate_distance(driver['coordinates'], terminal_coord)
+        travel_time = estimate_travel_time(distance_to_terminal)
+        print(f"  ⚠ Fallback to geodesic: {distance_to_terminal} km, {travel_time} min (estimated)")
 
     # Calculate pickup time window
     presentation_time = driver.get('time', '08:00')
@@ -496,7 +584,7 @@ def geocode_driver_parallel(driver_data):
 
     # Add timing information to driver
     driver['distance_to_terminal_km'] = round(distance_to_terminal, 2)
-    driver['travel_time_minutes'] = travel_time
+    driver['travel_time_minutes'] = round(travel_time, 1)
     driver['presentation_time'] = time_window['presentation_time_str']
     driver['presentation_time_minutes'] = time_window['presentation_time_minutes']
     driver['pickup_time_latest'] = time_window['pickup_time_latest_str']
@@ -623,7 +711,16 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
     # Create BUS route (bus stop → terminal)
     if bus_passengers:
         bus_route = [BUS_STOP_MAIPU, terminal_coord]
-        bus_distance = calculate_distance(BUS_STOP_MAIPU, terminal_coord)
+
+        # Get real road distance for bus route
+        bus_route_info = get_route_distance_and_time(BUS_STOP_MAIPU, terminal_coord)
+        if bus_route_info:
+            bus_distance = bus_route_info['distance_km']
+            print(f"  ✓ Bus route (real): {bus_distance} km")
+        else:
+            bus_distance = calculate_distance(BUS_STOP_MAIPU, terminal_coord)
+            print(f"  ⚠ Bus route (geodesic fallback): {bus_distance} km")
+
         total_distance += bus_distance
 
         # Create driver list for bus with bus stop info
