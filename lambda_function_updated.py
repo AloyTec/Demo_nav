@@ -132,10 +132,42 @@ def geocode_terminal(terminal_name):
     print(f"  Terminal not in known list, geocoding: {terminal_name}")
     return geocode_address(terminal_name)
 
+def is_in_comuna(geocode_result, expected_comuna):
+    """
+    Check if a geocoding result is in the expected comuna.
+
+    Args:
+        geocode_result: A single result object from Google Maps Geocoding API
+        expected_comuna: The expected comuna name (e.g., "Cerro Navia")
+
+    Returns:
+        True if the result is in the expected comuna, False otherwise
+    """
+    # Normalize expected comuna for comparison
+    expected_comuna_normalized = expected_comuna.lower().strip()
+
+    # Check address_components for locality or administrative_area_level_3
+    # which typically contain the comuna name in Chilean addresses
+    address_components = geocode_result.get('address_components', [])
+
+    for component in address_components:
+        types = component.get('types', [])
+        name = component.get('long_name', '').lower().strip()
+
+        # In Chile, comunas are typically in these types:
+        # - locality (most common for comunas)
+        # - administrative_area_level_3 (sometimes)
+        # - sublocality (sometimes for sectors within comunas)
+        if any(t in types for t in ['locality', 'administrative_area_level_3', 'sublocality']):
+            if expected_comuna_normalized in name or name in expected_comuna_normalized:
+                return True
+
+    return False
+
 def geocode_address(address):
     """
     Geocode an address to lat/lng coordinates using Google Maps Geocoding API
-    with multiple fallback strategies
+    with multiple fallback strategies and comuna validation
     """
     if not GOOGLE_MAPS_API_KEY:
         print(f"  ❌ ERROR: GOOGLE_MAPS_API_KEY not configured")
@@ -152,7 +184,7 @@ def geocode_address(address):
     base_address = parts[0].strip()
     comuna = parts[1].strip() if len(parts) > 1 else None
 
-    # Strategy 1: Try full cleaned address
+    # Strategy 1: Try full cleaned address with comuna validation
     try:
         query = f"{cleaned_address}, Santiago, Chile"
         print(f"  Trying: {query}")
@@ -163,9 +195,27 @@ def geocode_address(address):
         if response.status == 200:
             data = json.loads(response.data.decode('utf-8'))
             if data.get('status') == 'OK' and len(data.get('results', [])) > 0:
-                location = data['results'][0]['geometry']['location']
-                print(f"  ✓ Geocoded with full address: {cleaned_address}")
-                return {'lat': location['lat'], 'lng': location['lng']}
+                results = data.get('results', [])
+                print(f"  → Google Maps returned {len(results)} result(s)")
+
+                # If comuna is specified, validate all results against it
+                if comuna:
+                    for i, result in enumerate(results):
+                        if is_in_comuna(result, comuna):
+                            location = result['geometry']['location']
+                            formatted_address = result.get('formatted_address', 'N/A')
+                            print(f"  ✓ Match found in {comuna}: {formatted_address}")
+                            return {'lat': location['lat'], 'lng': location['lng']}
+
+                    # No result matched the expected comuna
+                    print(f"  ⚠ None of the {len(results)} results matched comuna '{comuna}'")
+                    print(f"  → Falling back to Strategy 2")
+                else:
+                    # No comuna specified, use first result
+                    location = results[0]['geometry']['location']
+                    formatted_address = results[0].get('formatted_address', 'N/A')
+                    print(f"  ✓ Geocoded (no comuna filter): {formatted_address}")
+                    return {'lat': location['lat'], 'lng': location['lng']}
             elif data.get('status') == 'ZERO_RESULTS':
                 print(f"  Strategy 1: No results found")
             else:
@@ -187,9 +237,19 @@ def geocode_address(address):
             if response.status == 200:
                 data = json.loads(response.data.decode('utf-8'))
                 if data.get('status') == 'OK' and len(data.get('results', [])) > 0:
-                    location = data['results'][0]['geometry']['location']
-                    print(f"  ✓ Geocoded with street only: {street_only}, {comuna}")
-                    return {'lat': location['lat'], 'lng': location['lng']}
+                    results = data.get('results', [])
+                    print(f"  → Google Maps returned {len(results)} result(s)")
+
+                    # Validate results against comuna
+                    for result in results:
+                        if is_in_comuna(result, comuna):
+                            location = result['geometry']['location']
+                            formatted_address = result.get('formatted_address', 'N/A')
+                            print(f"  ✓ Match found (street only) in {comuna}: {formatted_address}")
+                            return {'lat': location['lat'], 'lng': location['lng']}
+
+                    # If no match, log but continue to Strategy 3
+                    print(f"  ⚠ Strategy 2: No results matched comuna '{comuna}'")
         except Exception as e:
             print(f"  Strategy 2 failed: {e}")
 
