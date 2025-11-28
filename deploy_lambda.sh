@@ -66,25 +66,81 @@ cd $DEPLOY_DIR
 find . -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true
 find . -type d -name "test" -exec rm -rf {} + 2>/dev/null || true
 find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+find . -type d -name "examples" -exec rm -rf {} + 2>/dev/null || true
+find . -type d -name "benchmarks" -exec rm -rf {} + 2>/dev/null || true
 
 # Remove unnecessary files
 find . -type f -name "*.pyc" -delete 2>/dev/null || true
 find . -type f -name "*.pyo" -delete 2>/dev/null || true
 find . -type f -name "*.pyx" -delete 2>/dev/null || true
 find . -type f -name "*.pxd" -delete 2>/dev/null || true
+find . -type f -name "*.pxi" -delete 2>/dev/null || true
 find . -type f -name "*.c" -delete 2>/dev/null || true
 find . -type f -name "*.cpp" -delete 2>/dev/null || true
 find . -type f -name "*.h" -delete 2>/dev/null || true
+find . -type f -name "*.hpp" -delete 2>/dev/null || true
+find . -type f -name "*.pyi" -delete 2>/dev/null || true
+find . -type f -name "*.typed" -delete 2>/dev/null || true
 
 # Remove documentation
 find . -type d -name "doc" -exec rm -rf {} + 2>/dev/null || true
 find . -type d -name "docs" -exec rm -rf {} + 2>/dev/null || true
 find . -type f -name "*.md" -delete 2>/dev/null || true
 find . -type f -name "*.rst" -delete 2>/dev/null || true
+find . -type f -name "*.txt" -delete 2>/dev/null || true
+find . -type f -name "LICENSE*" -delete 2>/dev/null || true
+find . -type f -name "COPYING*" -delete 2>/dev/null || true
+
+# Remove bin directories (executables not needed in Lambda)
+find . -type d -name "bin" -exec rm -rf {} + 2>/dev/null || true
+
+# Remove scipy test data
+find . -path "*/scipy/*/tests/data/*" -delete 2>/dev/null || true
+
+# Remove large scipy modules we don't use (keep only stats, spatial, sparse, linalg needed by sklearn)
+echo "  Removing unused scipy modules..."
+rm -rf ./scipy/fft 2>/dev/null || true
+rm -rf ./scipy/fftpack 2>/dev/null || true
+rm -rf ./scipy/signal 2>/dev/null || true
+rm -rf ./scipy/ndimage 2>/dev/null || true
+rm -rf ./scipy/interpolate 2>/dev/null || true
+rm -rf ./scipy/integrate 2>/dev/null || true
+rm -rf ./scipy/io 2>/dev/null || true
+rm -rf ./scipy/misc 2>/dev/null || true
+rm -rf ./scipy/odr 2>/dev/null || true
+rm -rf ./scipy/datasets 2>/dev/null || true
+
+# Remove unused sklearn modules (keep only cluster for KMeans)
+echo "  Removing unused sklearn modules..."
+rm -rf ./sklearn/neural_network 2>/dev/null || true
+rm -rf ./sklearn/svm 2>/dev/null || true
+rm -rf ./sklearn/tree 2>/dev/null || true
+rm -rf ./sklearn/ensemble 2>/dev/null || true
+rm -rf ./sklearn/linear_model 2>/dev/null || true
+rm -rf ./sklearn/manifold 2>/dev/null || true
+rm -rf ./sklearn/gaussian_process 2>/dev/null || true
+rm -rf ./sklearn/covariance 2>/dev/null || true
+rm -rf ./sklearn/cross_decomposition 2>/dev/null || true
+rm -rf ./sklearn/decomposition 2>/dev/null || true
+rm -rf ./sklearn/feature_extraction 2>/dev/null || true
+rm -rf ./sklearn/feature_selection 2>/dev/null || true
+rm -rf ./sklearn/naive_bayes 2>/dev/null || true
+rm -rf ./sklearn/calibration 2>/dev/null || true
+rm -rf ./sklearn/semi_supervised 2>/dev/null || true
+rm -rf ./sklearn/discriminant_analysis.py 2>/dev/null || true
+rm -rf ./sklearn/isotonic.py 2>/dev/null || true
+rm -rf ./sklearn/kernel_approximation.py 2>/dev/null || true
+rm -rf ./sklearn/kernel_ridge.py 2>/dev/null || true
+rm -rf ./sklearn/multiclass.py 2>/dev/null || true
+rm -rf ./sklearn/multioutput.py 2>/dev/null || true
+rm -rf ./sklearn/random_projection.py 2>/dev/null || true
 
 # Strip debug symbols from .so files
 echo "  Stripping debug symbols from shared libraries..."
 find . -name "*.so" -type f -exec strip {} + 2>/dev/null || true
+
+# Remove .a files (static libraries)
+find . -type f -name "*.a" -delete 2>/dev/null || true
 
 cd ..
 
