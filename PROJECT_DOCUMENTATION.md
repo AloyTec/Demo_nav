@@ -19,37 +19,41 @@ Sistema web de optimización de rutas para transporte de conductores desde sus h
 ## 🛠️ Stack Tecnológico
 
 ### Frontend
-| Tecnología | Versión | Propósito |
-|------------|---------|-----------|
-| **React** | 18.2.0 | Framework UI principal |
-| **Vite** | 5.0.0 | Build tool y dev server |
-| **Tailwind CSS** | 3.3.0 | Styling y diseño responsivo |
-| **Leaflet** | 1.9.4 | Mapas interactivos |
-| **React-Leaflet** | 4.2.1 | Integración React + Leaflet |
-| **Axios** | 1.6.0 | HTTP client |
-| **Recharts** | 2.10.0 | Gráficos y visualizaciones |
-| **Lucide React** | 0.294.0 | Iconografía |
+
+| Tecnología        | Versión | Propósito                   |
+| ----------------- | ------- | --------------------------- |
+| **React**         | 18.2.0  | Framework UI principal      |
+| **Vite**          | 5.0.0   | Build tool y dev server     |
+| **Tailwind CSS**  | 3.3.0   | Styling y diseño responsivo |
+| **Leaflet**       | 1.9.4   | Mapas interactivos          |
+| **React-Leaflet** | 4.2.1   | Integración React + Leaflet |
+| **Axios**         | 1.6.0   | HTTP client                 |
+| **Recharts**      | 2.10.0  | Gráficos y visualizaciones  |
+| **Lucide React**  | 0.294.0 | Iconografía                 |
 
 ### Backend
-| Tecnología | Versión | Propósito |
-|------------|---------|-----------|
-| **AWS Lambda** | Python 3.11 | Procesamiento de optimización |
-| **Vercel Functions** | Node.js 20 | API de rutas por calles |
-| **NumPy** | 1.26.2 | Operaciones matemáticas |
-| **Pandas** | 2.1.3 | Procesamiento de datos |
-| **Scikit-learn** | 1.3.2 | Algoritmo K-Means |
-| **GeoPy** | 2.4.1 | Geocodificación |
+
+| Tecnología           | Versión     | Propósito                     |
+| -------------------- | ----------- | ----------------------------- |
+| **AWS Lambda**       | Python 3.11 | Procesamiento de optimización |
+| **Vercel Functions** | Node.js 20  | API de rutas por calles       |
+| **NumPy**            | 1.26.2      | Operaciones matemáticas       |
+| **Pandas**           | 2.1.3       | Procesamiento de datos        |
+| **Scikit-learn**     | 1.3.2       | Algoritmo K-Means             |
+| **GeoPy**            | 2.4.1       | Geocodificación               |
 
 ### Servicios Cloud
-| Servicio | Propósito |
-|----------|-----------|
-| **AWS Lambda** | Ejecución de algoritmos de optimización |
-| **AWS S3** | Storage de deployment packages |
-| **AWS DynamoDB** | Tracking de uso del demo |
-| **Vercel** | Hosting del frontend y serverless functions |
-| **Google Maps Routes API** | Cálculo de rutas reales por calles |
+
+| Servicio                   | Propósito                                   |
+| -------------------------- | ------------------------------------------- |
+| **AWS Lambda**             | Ejecución de algoritmos de optimización     |
+| **AWS S3**                 | Storage de deployment packages              |
+| **AWS DynamoDB**           | Tracking de uso del demo                    |
+| **Vercel**                 | Hosting del frontend y serverless functions |
+| **Google Maps Routes API** | Cálculo de rutas reales por calles          |
 
 ### Lenguajes de Programación
+
 - **JavaScript/JSX**: Frontend (React)
 - **Python**: Backend (AWS Lambda)
 - **JavaScript**: Vercel Serverless Functions
@@ -260,6 +264,7 @@ Renderizar:
 **Propósito**: Dividir conductores en grupos geográficos para asignarlos a vans.
 
 **Implementación**:
+
 ```python
 from sklearn.cluster import KMeans
 
@@ -279,6 +284,7 @@ for driver, label in zip(drivers, labels):
 ```
 
 **Ventajas**:
+
 - Agrupa conductores cercanos geográficamente
 - Minimiza distancia intra-cluster
 - Escalable a muchos conductores
@@ -288,6 +294,7 @@ for driver, label in zip(drivers, labels):
 **Propósito**: Ordenar las paradas de cada van para minimizar distancia total.
 
 **Implementación**:
+
 ```python
 def optimize_route_tsp(drivers):
     route = [drivers[0]]  # Comenzar con primer conductor
@@ -312,6 +319,7 @@ def optimize_route_tsp(drivers):
 **Propósito**: Mejorar la ruta TSP eliminando cruces.
 
 **Implementación**:
+
 ```python
 def improve_route_2opt(route):
     improved = True
@@ -343,6 +351,7 @@ def improve_route_2opt(route):
 **Propósito**: Equilibrar número de conductores entre vans.
 
 **Implementación**:
+
 ```python
 def balance_load(clusters):
     while True:
@@ -368,29 +377,34 @@ def balance_load(clusters):
 **Algoritmo**: Google's Encoded Polyline Algorithm Format
 
 **Implementación**:
+
 ```javascript
 function decodePolyline(encoded) {
-    const points = [];
-    let index = 0, lat = 0, lng = 0;
+  const points = [];
+  let index = 0,
+    lat = 0,
+    lng = 0;
 
-    while (index < encoded.length) {
-        // Decodificar latitud
-        let shift = 0, result = 0, byte;
-        do {
-            byte = encoded.charCodeAt(index++) - 63;
-            result |= (byte & 0x1f) << shift;
-            shift += 5;
-        } while (byte >= 0x20);
+  while (index < encoded.length) {
+    // Decodificar latitud
+    let shift = 0,
+      result = 0,
+      byte;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
 
-        lat += ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lat += result & 1 ? ~(result >> 1) : result >> 1;
 
-        // Decodificar longitud (similar)
-        // ...
+    // Decodificar longitud (similar)
+    // ...
 
-        points.push({ lat: lat / 1e5, lng: lng / 1e5 });
-    }
+    points.push({ lat: lat / 1e5, lng: lng / 1e5 });
+  }
 
-    return points;
+  return points;
 }
 ```
 
@@ -442,6 +456,7 @@ Demo_nav/
 **Propósito**: Procesamiento pesado de optimización de rutas
 
 **Configuración**:
+
 ```json
 {
   "Runtime": "python3.11",
@@ -453,11 +468,13 @@ Demo_nav/
 ```
 
 **Endpoint**: Function URL (no API Gateway)
+
 ```
-https://jvxxqv6ihctxjcds3dcddvxype0jmjay.lambda-url.us-east-1.on.aws/
+http://localhost:8000/
 ```
 
 **Ventajas**:
+
 - ✅ Hasta 15 min de timeout (Function URL)
 - ✅ 2GB RAM para NumPy/Pandas
 - ✅ Escalado automático
@@ -468,11 +485,13 @@ https://jvxxqv6ihctxjcds3dcddvxype0jmjay.lambda-url.us-east-1.on.aws/
 **Propósito**: Cálculo de rutas reales por calles con tráfico
 
 **Endpoint**:
+
 ```
 POST https://routes.googleapis.com/directions/v2:computeRoutes
 ```
 
 **Headers Requeridos**:
+
 ```javascript
 {
   'X-Goog-Api-Key': process.env.GOOGLE_MAPS_API_KEY,
@@ -481,6 +500,7 @@ POST https://routes.googleapis.com/directions/v2:computeRoutes
 ```
 
 **Request Body**:
+
 ```json
 {
   "origin": {
@@ -490,7 +510,9 @@ POST https://routes.googleapis.com/directions/v2:computeRoutes
     "location": { "latLng": { "latitude": -33.5115, "longitude": -70.7646 } }
   },
   "intermediates": [
-    { "location": { "latLng": { "latitude": -33.4567, "longitude": -70.6789 } } }
+    {
+      "location": { "latLng": { "latitude": -33.4567, "longitude": -70.6789 } }
+    }
   ],
   "travelMode": "DRIVE",
   "routingPreference": "TRAFFIC_AWARE"
@@ -498,19 +520,23 @@ POST https://routes.googleapis.com/directions/v2:computeRoutes
 ```
 
 **Response**:
+
 ```json
 {
-  "routes": [{
-    "distanceMeters": 15320,
-    "duration": "1245.5s",
-    "polyline": {
-      "encodedPolyline": "abcdef123456..."
+  "routes": [
+    {
+      "distanceMeters": 15320,
+      "duration": "1245.5s",
+      "polyline": {
+        "encodedPolyline": "abcdef123456..."
+      }
     }
-  }]
+  ]
 }
 ```
 
 **Pricing**:
+
 - Basic (≤10 waypoints): $5 / 1,000 requests
 - Advanced (11-25 waypoints): $10 / 1,000 requests
 - Crédito gratis: $200/mes (~4,000 optimizaciones)
@@ -520,6 +546,7 @@ POST https://routes.googleapis.com/directions/v2:computeRoutes
 **Propósito**: Hosting del frontend + serverless functions
 
 **Configuración** (`vercel.json`):
+
 ```json
 {
   "buildCommand": "npm run build",
@@ -535,6 +562,7 @@ POST https://routes.googleapis.com/directions/v2:computeRoutes
 ```
 
 **Features Utilizados**:
+
 - ✅ Automatic deployments (Git push → Deploy)
 - ✅ Serverless functions en `/api`
 - ✅ Environment variables
@@ -546,6 +574,7 @@ POST https://routes.googleapis.com/directions/v2:computeRoutes
 **Propósito**: Geocodificación precisa de direcciones en Santiago, Chile
 
 **Implementación**:
+
 ```python
 import urllib3
 import json
@@ -559,6 +588,7 @@ location = data['results'][0]['geometry']['location']
 ```
 
 **Features**:
+
 - ✅ Geocodificación paralela (ThreadPoolExecutor con 10 workers)
 - ✅ Múltiples estrategias de fallback para direcciones ambiguas
 - ✅ Coordenadas predefinidas para terminales conocidos
@@ -569,6 +599,7 @@ location = data['results'][0]['geometry']['location']
 **Propósito**: Tracking de uso del demo
 
 **Schema**:
+
 ```json
 {
   "demo_id": "uuid-v4",
@@ -656,16 +687,19 @@ aws lambda update-function-configuration \
 ### Variables de Entorno
 
 **Frontend (Vercel)**:
+
 ```bash
 VITE_API_URL=https://lambda-url.amazonaws.com
 ```
 
 **Vercel Functions**:
+
 ```bash
 GOOGLE_MAPS_API_KEY=AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 ```
 
 **AWS Lambda**:
+
 ```bash
 BUCKET_NAME=route-optimizer-demo-889268462469
 TABLE_NAME=route-optimizer-demo-tracking
@@ -677,29 +711,32 @@ TABLE_NAME=route-optimizer-demo-tracking
 
 ### Capacidades del Sistema
 
-| Métrica | Valor |
-|---------|-------|
-| **Conductores máximos** | 100+ (testeado con 40) |
-| **Vans por optimización** | 2-5 (configurable) |
-| **Capacidad por van** | 10 pasajeros |
-| **Capacidad bus** | 40 pasajeros |
-| **Tiempo de procesamiento** | 3-10 segundos (40 conductores) |
-| **Precisión geocodificación** | ~98% (Google Maps API) |
-| **Waypoints por ruta** | Hasta 25 (Google Routes API) |
+| Métrica                       | Valor                          |
+| ----------------------------- | ------------------------------ |
+| **Conductores máximos**       | 100+ (testeado con 40)         |
+| **Vans por optimización**     | 2-5 (configurable)             |
+| **Capacidad por van**         | 10 pasajeros                   |
+| **Capacidad bus**             | 40 pasajeros                   |
+| **Tiempo de procesamiento**   | 3-10 segundos (40 conductores) |
+| **Precisión geocodificación** | ~98% (Google Maps API)         |
+| **Waypoints por ruta**        | Hasta 25 (Google Routes API)   |
 
 ### Límites Técnicos
 
 **AWS Lambda**:
+
 - Timeout: 300 segundos (5 min)
 - Memory: 2048 MB
 - Payload: 6 MB
 
 **Google Routes API**:
+
 - Waypoints: Máx 25 por request
 - Rate limit: Según API key
 - Crédito gratis: $200/mes
 
 **Vercel Functions**:
+
 - Timeout: 30 segundos
 - Memory: 1024 MB
 - Hobby plan: Ilimitado
@@ -713,6 +750,7 @@ TABLE_NAME=route-optimizer-demo-tracking
 **Escenario**: 30 conductores → Terminal Aeropuerto T1
 
 **Proceso**:
+
 1. K-Means divide en 3 vans (~10 cada una)
 2. TSP optimiza orden de recogida
 3. 2-opt mejora las rutas
@@ -726,6 +764,7 @@ TABLE_NAME=route-optimizer-demo-tracking
 **Escenario**: 40 conductores → Terminal Maipú (remoto)
 
 **Proceso**:
+
 1. K-Means divide en 4 vans (~10 cada una)
 2. Cada van se divide en 2 grupos de 5
 3. **Grupo 1**: Van → recoge → deja en bus stop
@@ -733,6 +772,7 @@ TABLE_NAME=route-optimizer-demo-tracking
 5. **Bus**: Bus stop → Terminal (40 pasajeros)
 
 **Ventajas**:
+
 - ✅ Vans no hacen viaje largo al terminal
 - ✅ Bus lleva muchos pasajeros eficientemente
 - ✅ Reduce km totales de vans
@@ -745,12 +785,14 @@ TABLE_NAME=route-optimizer-demo-tracking
 ### API Keys
 
 **Google Maps API**:
+
 - ✅ Almacenada en Vercel Environment Variables
 - ✅ Solo accesible en server-side (Vercel Functions)
-- ✅ Restringida por dominio (*.vercel.app)
+- ✅ Restringida por dominio (\*.vercel.app)
 - ✅ Restringida por API (solo Routes API)
 
 **AWS Credentials**:
+
 - ✅ IAM roles con least privilege
 - ✅ No hardcodeadas en código
 - ✅ Lambda execution role específico
@@ -776,22 +818,24 @@ Access-Control-Allow-Headers: Content-Type
 
 ### Tiempos de Respuesta
 
-| Operación | Tiempo Promedio | Máximo |
-|-----------|-----------------|--------|
-| **Geocodificación** (40 dirs) | 5-8 segundos | 15s |
-| **K-Means + TSP** | 0.5-1 segundo | 2s |
-| **Lambda total** | 8-12 segundos | 30s |
-| **Google Routes API** (por van) | 1-2 segundos | 5s |
-| **Rendering frontend** | <100ms | 500ms |
-| **Total end-to-end** | 15-25 segundos | 60s |
+| Operación                       | Tiempo Promedio | Máximo |
+| ------------------------------- | --------------- | ------ |
+| **Geocodificación** (40 dirs)   | 5-8 segundos    | 15s    |
+| **K-Means + TSP**               | 0.5-1 segundo   | 2s     |
+| **Lambda total**                | 8-12 segundos   | 30s    |
+| **Google Routes API** (por van) | 1-2 segundos    | 5s     |
+| **Rendering frontend**          | <100ms          | 500ms  |
+| **Total end-to-end**            | 15-25 segundos  | 60s    |
 
 ### Uso de Recursos
 
 **Lambda**:
+
 - Memory used: ~500 MB (de 2048 MB disponibles)
 - CPU: ~80% durante K-Means/TSP
 
 **Frontend**:
+
 - Bundle size: ~880 KB (comprimido: ~260 KB)
 - Lighthouse score: 85-95
 
@@ -822,6 +866,7 @@ Dashboard → Project → Deployment → Functions → /api/get-street-route
 ```
 
 Logs típicos:
+
 ```
 🚀 [API] get-street-route called
 ✅ [API] Validated 5 waypoints
@@ -869,9 +914,11 @@ Lambda → Functions → route-optimizer → Monitor → View logs in CloudWatch
 ## 👥 Equipo y Contribuciones
 
 ### Desarrollado por
+
 - **AloyTec** - Desarrollo completo del sistema
 
 ### Tecnologías Open Source Utilizadas
+
 - React, Vite, Tailwind CSS
 - Leaflet, React-Leaflet
 - NumPy, Pandas, Scikit-learn
@@ -887,6 +934,7 @@ Proyecto propietario - AloyTec © 2025
 ## 📞 Soporte
 
 Para preguntas o issues:
+
 - GitHub: [AloyTec/Demo_nav](https://github.com/AloyTec/Demo_nav)
 - Email: [Contacto del proyecto]
 

@@ -16,19 +16,27 @@ from sklearn.cluster import KMeans
 import uuid
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
+import hashlib
+from pathlib import Path
 
 # AWS clients
 s3_client = boto3.client('s3')
-dynamodb = boto3.resource('dynamodb')
 
 # Configuration
 BUCKET_NAME = 'route-optimizer-demo-889268462469'
-TABLE_NAME = 'route-optimizer-demo-tracking'
-table = dynamodb.Table(TABLE_NAME)
 
 # Google Maps API Configuration
 GOOGLE_MAPS_API_KEY = os.environ.get('GOOGLE_MAPS_API_KEY', '')
 http = urllib3.PoolManager()
+
+# Response Caching Configuration (for development/testing)
+ENABLE_CACHE = os.environ.get('ENABLE_RESPONSE_CACHE', 'true').lower() == 'true'
+CACHE_DIR = Path(os.environ.get('CACHE_DIR', './cache_responses'))
+
+# Create cache directory if it doesn't exist
+if ENABLE_CACHE:
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    print(f"✓ Response caching ENABLED - Cache dir: {CACHE_DIR}")
 
 # Fleet Configuration
 DEFAULT_NUM_VANS = 10  # Flota estándar de 10 vans
@@ -90,6 +98,75 @@ TERMINALS_WITH_BUS = ['maipu', 'maipú', 'terminal maipu', 'terminal maipú']
 def cors_headers():
     """Return empty headers - CORS is handled by Lambda Function URL configuration"""
     return {}
+
+def generate_cache_key(data):
+    """
+    Generate a cache key from request data
+
+    Args:
+        data: Request data (dict)
+
+    Returns:
+        Cache key (hash of the data)
+    """
+    # Create a stable string representation of the data
+    # Sort keys to ensure consistent hashing
+    data_str = json.dumps(data, sort_keys=True, default=str)
+
+    # Generate SHA256 hash
+    cache_key = hashlib.sha256(data_str.encode()).hexdigest()
+
+    return cache_key
+
+def get_cached_response(cache_key):
+    """
+    Get cached response if it exists
+
+    Args:
+        cache_key: Cache key
+
+    Returns:
+        Cached response data (dict) or None if not found
+    """
+    if not ENABLE_CACHE:
+        return None
+
+    cache_file = CACHE_DIR / f"{cache_key}.json"
+
+    if cache_file.exists():
+        try:
+            with open(cache_file, 'r') as f:
+                cached_data = json.load(f)
+
+            print(f"✓ CACHE HIT - Using cached response: {cache_file}")
+            return cached_data
+        except Exception as e:
+            print(f"⚠ Error reading cache file: {e}")
+            return None
+
+    print(f"✗ CACHE MISS - Will compute and cache response")
+    return None
+
+def save_response_to_cache(cache_key, response_data):
+    """
+    Save response to cache file
+
+    Args:
+        cache_key: Cache key
+        response_data: Response data to cache
+    """
+    if not ENABLE_CACHE:
+        return
+
+    cache_file = CACHE_DIR / f"{cache_key}.json"
+
+    try:
+        with open(cache_file, 'w') as f:
+            json.dump(response_data, f, indent=2, default=str)
+
+        print(f"✓ Response cached to: {cache_file}")
+    except Exception as e:
+        print(f"⚠ Error saving to cache: {e}")
 
 def clean_address_for_geocoding(address):
     """
@@ -678,19 +755,9 @@ def balance_load(clusters):
     return clusters
 
 def track_demo_usage(demo_id, data):
-    """Track demo usage in DynamoDB"""
-    try:
-        table.put_item(
-            Item={
-                'demo_id': demo_id,
-                'timestamp': int(time.time()),
-                'data': json.dumps(data, default=str),
-                'created_at': datetime.now().isoformat()
-            }
-        )
-        print(f"✓ Tracked demo usage: {demo_id}")
-    except Exception as e:
-        print(f"Error tracking demo: {e}")
+    """Track demo usage - disabled"""
+    # DynamoDB tracking removed - not needed
+    pass
 
 def geocode_driver_parallel(driver_data):
     """
@@ -1158,6 +1225,25 @@ def handle_optimize(event):
                 'body': json.dumps({'error': 'No drivers data provided'})
             }
 
+        # ============================================
+        # RESPONSE CACHING (for development/testing)
+        # ============================================
+        # Generate cache key from request data
+        cache_key = generate_cache_key(data)
+        print(f"Request cache key: {cache_key}")
+
+        # Check if cached response exists
+        cached_response = get_cached_response(cache_key)
+        if cached_response is not None:
+            # Return cached response immediately
+            print(f"✓ Returning cached response (skipping optimization)")
+            return {
+                'statusCode': 200,
+                'headers': cors_headers(),
+                'body': json.dumps(cached_response)
+            }
+        # ============================================
+
         # Get configuration parameters from request (with defaults)
         config = data.get('config', {})
         num_vans_config = config.get('numVans', None)  # None means auto-calculate
@@ -1383,6 +1469,9 @@ def handle_optimize(event):
                 'total_distance': total_distance,
                 'bus_mode': result['usingBusMode']
             })
+
+            # Save response to cache for future requests
+            save_response_to_cache(cache_key, result)
 
             print(f"Optimization complete: {total_vans} vans, {total_distance:.1f} km total")
             return {

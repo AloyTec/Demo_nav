@@ -4,6 +4,7 @@ build/
 .DS_Store
 *.log
 .env
+.env.local
 .vscode/
 *.pyc
 __pycache__/
@@ -42,3 +43,4 @@ lambda_fixed_s3/
 lambda_fixed_from_s3.zip
 lambda_layer/
 lambda_deploy_package/
+.vercel

@@ -24,6 +24,7 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
   const [loadingRoutes, setLoadingRoutes] = useState(false);
   const [routeErrors, setRouteErrors] = useState({});
   const [hoveredRoute, setHoveredRoute] = useState(null); // Track which route is being hovered
+  const [selectedRoute, setSelectedRoute] = useState(null); // Track which route is locked (clicked)
 
   useEffect(() => {
     console.log('MapView data:', data); // DEBUG
@@ -165,41 +166,31 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
           const routeToDisplay = streetRoutes[vanIndex] || van.route;
           const isStreetRoute = streetRoutes[vanIndex] && streetRoutes[vanIndex].length > van.route.length;
 
-          console.log(`🗺️ [Render] ${van.name}:`);
-          console.log(`   Has street route: ${!!streetRoutes[vanIndex]}`);
-          console.log(`   Is street route: ${isStreetRoute}`);
-          console.log(`   Original route length: ${van.route.length}`);
-          console.log(`   Display route length: ${routeToDisplay.length}`);
-          console.log(`   Line style: ${isStreetRoute ? 'SOLID (street)' : 'DASHED (straight)'}`);
+          // Determine active route (selectedRoute takes precedence over hoveredRoute)
+          const activeRoute = selectedRoute !== null ? selectedRoute : hoveredRoute;
+
+          // Check if this route should be visible
+          const isActiveRoute = activeRoute === vanIndex;
+          const shouldShowRoute = activeRoute === null || isActiveRoute;
 
           return (
             <React.Fragment key={`van-${van.name}`}>
               {/* Route polyline - shows street route when available */}
-              {routeToDisplay && routeToDisplay.length > 1 && (
+              {shouldShowRoute && routeToDisplay && routeToDisplay.length > 1 && (
                 <Polyline
                   positions={routeToDisplay.map(point => [point.lat, point.lng])}
                   color={color}
-                  weight={hoveredRoute === null
-                    ? (isStreetRoute ? 4 : 3)
-                    : hoveredRoute === vanIndex
-                      ? (isStreetRoute ? 8 : 7)
-                      : (isStreetRoute ? 2 : 1.5)
-                  }
-                  opacity={hoveredRoute === null
-                    ? (isStreetRoute ? 0.9 : 0.8)
-                    : hoveredRoute === vanIndex
-                      ? 1
-                      : 0.2
-                  }
+                  weight={isActiveRoute ? (isStreetRoute ? 8 : 7) : (isStreetRoute ? 4 : 3)}
+                  opacity={isActiveRoute ? 1 : (isStreetRoute ? 0.9 : 0.8)}
                   dashArray={isStreetRoute ? null : "10, 5"}
                   lineJoin="round"
                   lineCap="round"
-                  className={hoveredRoute === vanIndex ? 'route-highlighted' : ''}
+                  className={isActiveRoute ? 'route-highlighted' : ''}
                 />
               )}
 
               {/* Driver markers */}
-              {!isBus && van.drivers.map((driver, driverIndex) => {
+              {shouldShowRoute && !isBus && van.drivers.map((driver, driverIndex) => {
                 if (!driver.coordinates) return null;
 
                 const isFirst = driverIndex === 0;
@@ -277,9 +268,8 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
               })}
 
               {/* Bus markers - show bus icon for bus routes */}
-              {isBus && van.route && van.route.map((point, pointIndex) => {
+              {shouldShowRoute && isBus && van.route && van.route.map((point, pointIndex) => {
                 const isBusStop = pointIndex === 0; // First point is bus stop
-                const isTerminal = pointIndex === van.route.length - 1; // Last point is terminal
 
                 const busIcon = L.divIcon({
                   className: 'custom-marker',
@@ -366,23 +356,42 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
             </div>
           )}
         </div>
+
+        {/* Hint for user interaction */}
+        <div className="mb-3 pb-2 border-b border-gray-200">
+          <p className="text-xs text-gray-500">
+            {selectedRoute !== null
+              ? '🔒 Ruta bloqueada - Click para desbloquear'
+              : '💡 Pasa el cursor o haz click para aislar ruta'}
+          </p>
+        </div>
         <div className="space-y-2">
           {data.vans.map((van, index) => {
             const isBus = van.is_bus === true;
             const color = isBus ? BUS_COLOR : COLORS[index % COLORS.length];
 
+            // Determine active state (selected takes precedence)
+            const activeRoute = selectedRoute !== null ? selectedRoute : hoveredRoute;
+            const isActive = activeRoute === index;
+            const isSelected = selectedRoute === index;
+
             return (
               <div
                 key={index}
                 className="flex items-center gap-2 p-3 rounded-lg transition-all duration-200 cursor-pointer"
-                onMouseEnter={() => setHoveredRoute(index)}
-                onMouseLeave={() => setHoveredRoute(null)}
+                onMouseEnter={() => !selectedRoute && setHoveredRoute(index)}
+                onMouseLeave={() => !selectedRoute && setHoveredRoute(null)}
+                onClick={() => setSelectedRoute(selectedRoute === index ? null : index)}
                 style={{
-                  backgroundColor: hoveredRoute === index ? 'rgb(239, 246, 255)' : 'transparent',
-                  transform: hoveredRoute === index ? 'scale(1.05)' : 'scale(1)',
-                  boxShadow: hoveredRoute === index ? '0 4px 12px rgba(0, 0, 0, 0.15)' : 'none',
-                  border: hoveredRoute === index ? `2px solid ${color}` : '2px solid transparent',
-                  opacity: hoveredRoute === null ? 1 : hoveredRoute === index ? 1 : 0.5,
+                  backgroundColor: isActive ? 'rgb(239, 246, 255)' : 'transparent',
+                  transform: isActive ? 'scale(1.05)' : 'scale(1)',
+                  boxShadow: isActive ? '0 4px 12px rgba(0, 0, 0, 0.15)' : 'none',
+                  border: isSelected
+                    ? `3px solid ${color}`
+                    : isActive
+                      ? `2px solid ${color}`
+                      : '2px solid transparent',
+                  opacity: activeRoute === null ? 1 : isActive ? 1 : 0.3,
                 }}
               >
                 {isBus ? (
@@ -391,17 +400,18 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
                   </div>
                 ) : (
                   <div
-                    className="w-5 h-5 rounded-full transition-all duration-200"
+                    className={`w-5 h-5 rounded-full transition-all duration-200 ${isSelected ? 'animate-pulse' : ''}`}
                     style={{
                       backgroundColor: color,
-                      transform: hoveredRoute === index ? 'scale(1.4)' : 'scale(1)',
-                      boxShadow: hoveredRoute === index ? `0 0 12px ${color}` : 'none',
+                      transform: isActive ? 'scale(1.4)' : 'scale(1)',
+                      boxShadow: isActive ? `0 0 12px ${color}` : 'none',
                     }}
                   />
                 )}
                 <div className="text-sm flex-1">
-                  <p className={`font-semibold transition-all duration-200 ${hoveredRoute === index ? 'text-base' : ''}`}>
+                  <p className={`font-semibold transition-all duration-200 ${isActive ? 'text-base' : ''}`}>
                     {van.name}
+                    {isSelected && <span className="ml-2 text-xs">🔒</span>}
                   </p>
                   <p className="text-gray-500 text-xs">
                     {van.drivers.length} {isBus ? 'pasajeros' : 'conductores'} • {van.totalDistance?.toFixed(1)} km
