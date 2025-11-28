@@ -14,6 +14,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from geopy.distance import geodesic
 from sklearn.cluster import KMeans
 import uuid
+from ortools.constraint_solver import routing_enums_pb2
+from ortools.constraint_solver import pywrapcp
 
 # AWS clients
 s3_client = boto3.client('s3')
@@ -28,7 +30,8 @@ table = dynamodb.Table(TABLE_NAME)
 GOOGLE_MAPS_API_KEY = os.environ.get('GOOGLE_MAPS_API_KEY', '')
 http = urllib3.PoolManager()
 
-# Van and Bus Configuration
+# Fleet Configuration
+DEFAULT_NUM_VANS = 10  # Flota estándar de 10 vans
 VAN_CAPACITY = 10  # Capacidad máxima por van
 BUS_CAPACITY = 40  # Capacidad del bus de acercamiento
 
@@ -456,8 +459,130 @@ def format_minutes_to_time(minutes):
     mins = int(minutes % 60)
     return f"{hours:02d}:{mins:02d}"
 
-def optimize_route_tsp(drivers):
-    """Improved TSP algorithm with 2-opt optimization"""
+def create_distance_matrix(drivers):
+    """
+    Create distance matrix for OR-Tools optimization
+
+    Args:
+        drivers: List of drivers with coordinates
+
+    Returns:
+        Distance matrix (2D list) in meters (scaled to int for OR-Tools)
+    """
+    num_locations = len(drivers)
+    distance_matrix = []
+
+    for i in range(num_locations):
+        row = []
+        for j in range(num_locations):
+            if i == j:
+                row.append(0)
+            else:
+                # Calculate distance in km, then convert to meters (int)
+                distance_km = calculate_distance(
+                    drivers[i]['coordinates'],
+                    drivers[j]['coordinates']
+                )
+                distance_meters = int(distance_km * 1000)
+                row.append(distance_meters)
+        distance_matrix.append(row)
+
+    return distance_matrix
+
+
+def optimize_route_ortools(drivers, time_limit_seconds=30):
+    """
+    Optimize route using Google OR-Tools VRP solver
+
+    Args:
+        drivers: List of drivers with coordinates
+        time_limit_seconds: Maximum time for solver (default 30s)
+
+    Returns:
+        Optimized route (list of drivers in optimal order)
+    """
+    if len(drivers) <= 1:
+        return drivers
+
+    try:
+        # Create distance matrix
+        distance_matrix = create_distance_matrix(drivers)
+        num_locations = len(drivers)
+
+        # Create the routing index manager
+        manager = pywrapcp.RoutingIndexManager(num_locations, 1, 0)
+
+        # Create Routing Model
+        routing = pywrapcp.RoutingModel(manager)
+
+        # Create and register distance callback
+        def distance_callback(from_index, to_index):
+            """Returns the distance between the two nodes."""
+            from_node = manager.IndexToNode(from_index)
+            to_node = manager.IndexToNode(to_index)
+            return distance_matrix[from_node][to_node]
+
+        transit_callback_index = routing.RegisterTransitCallback(distance_callback)
+
+        # Define cost of each arc
+        routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
+
+        # Add capacity constraint (for pickup time windows if needed)
+        # This ensures the van doesn't exceed capacity
+        def demand_callback(from_index):
+            """Returns the demand of the node."""
+            from_node = manager.IndexToNode(from_index)
+            return 1  # Each driver counts as 1 person
+
+        demand_callback_index = routing.RegisterUnaryTransitCallback(demand_callback)
+        routing.AddDimensionWithVehicleCapacity(
+            demand_callback_index,
+            0,  # null capacity slack
+            [VAN_CAPACITY],  # vehicle maximum capacities
+            True,  # start cumul to zero
+            'Capacity'
+        )
+
+        # Setting first solution heuristic
+        search_parameters = pywrapcp.DefaultRoutingSearchParameters()
+        search_parameters.first_solution_strategy = (
+            routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
+        )
+        search_parameters.local_search_metaheuristic = (
+            routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
+        )
+        search_parameters.time_limit.seconds = time_limit_seconds
+        search_parameters.log_search = False
+
+        # Solve the problem
+        solution = routing.SolveWithParameters(search_parameters)
+
+        if solution:
+            # Extract route from solution
+            route = []
+            index = routing.Start(0)
+
+            while not routing.IsEnd(index):
+                node_index = manager.IndexToNode(index)
+                route.append(drivers[node_index])
+                index = solution.Value(routing.NextVar(index))
+
+            # Print optimization stats
+            total_distance = solution.ObjectiveValue() / 1000.0  # Convert back to km
+            print(f"  OR-Tools: Optimized route with {len(route)} stops, total distance: {total_distance:.2f} km")
+
+            return route
+        else:
+            print("  ⚠ OR-Tools: No solution found, falling back to 2-opt TSP")
+            return optimize_route_tsp_legacy(drivers)
+
+    except Exception as e:
+        print(f"  ⚠ OR-Tools optimization failed: {e}, falling back to 2-opt TSP")
+        return optimize_route_tsp_legacy(drivers)
+
+
+def optimize_route_tsp_legacy(drivers):
+    """Legacy TSP algorithm with 2-opt optimization (fallback)"""
     if len(drivers) <= 1:
         return drivers
 
@@ -507,6 +632,15 @@ def optimize_route_tsp(drivers):
 
     return route
 
+
+def optimize_route_tsp(drivers):
+    """
+    Optimize route using OR-Tools (preferred) with fallback to 2-opt TSP
+
+    This is the main function called by the optimization logic.
+    """
+    return optimize_route_ortools(drivers)
+
 def balance_load(clusters):
     """Balance the number of drivers across vans"""
     while True:
@@ -545,54 +679,99 @@ def geocode_driver_parallel(driver_data):
         driver_data: Tuple of (index, driver, destination_terminal_config)
 
     Returns:
-        Tuple of (index, driver_with_coordinates)
+        Tuple of (index, driver_with_coordinates, error_info)
     """
     idx, driver, destination_terminal_config = driver_data
+    error_info = None
 
     print(f"Geocoding {idx+1}: {driver['address']}")
 
-    # Geocode driver address
-    driver['coordinates'] = geocode_address(driver['address'])
+    try:
+        # Geocode driver address
+        driver['coordinates'] = geocode_address(driver['address'])
 
-    # Determine terminal
-    if destination_terminal_config:
-        terminal = destination_terminal_config
-        driver['terminal'] = terminal
-    else:
-        terminal = driver.get('terminal', 'Terminal Aeropuerto T1')
+        # Check if geocoding failed (returned Santiago center fallback)
+        if abs(driver['coordinates']['lat'] - (-33.4489)) < 0.15 and abs(driver['coordinates']['lng'] - (-70.6693)) < 0.15:
+            error_info = {
+                'driver_index': idx + 1,
+                'driver_name': driver.get('name', 'Unknown'),
+                'address': driver['address'],
+                'issue': 'Geocoding failed - using Santiago center as fallback',
+                'severity': 'warning'
+            }
 
-    # Geocode terminal
-    terminal_coord = geocode_terminal(terminal)
+        # Determine terminal
+        if destination_terminal_config:
+            terminal = destination_terminal_config
+            driver['terminal'] = terminal
+        else:
+            terminal = driver.get('terminal', 'Terminal Aeropuerto T1')
 
-    # Get REAL road distance and travel time using Distance Matrix API
-    route_info = get_route_distance_and_time(driver['coordinates'], terminal_coord)
+        # Geocode terminal
+        terminal_coord = geocode_terminal(terminal)
 
-    if route_info:
-        # Use real road distance and time from Google Maps
-        distance_to_terminal = route_info['distance_km']
-        travel_time = route_info['duration_minutes']
-        print(f"  ✓ Real route: {distance_to_terminal} km, {travel_time} min (from Distance Matrix API)")
-    else:
-        # Fallback to geodesic distance if API fails
-        distance_to_terminal = calculate_distance(driver['coordinates'], terminal_coord)
-        travel_time = estimate_travel_time(distance_to_terminal)
-        print(f"  ⚠ Fallback to geodesic: {distance_to_terminal} km, {travel_time} min (estimated)")
+        # Get REAL road distance and travel time using Distance Matrix API
+        route_info = get_route_distance_and_time(driver['coordinates'], terminal_coord)
 
-    # Calculate pickup time window
-    presentation_time = driver.get('time', '08:00')
-    time_window = calculate_pickup_time_window(presentation_time, travel_time)
+        if route_info:
+            # Use real road distance and time from Google Maps
+            distance_to_terminal = route_info['distance_km']
+            travel_time = route_info['duration_minutes']
+            print(f"  ✓ Real route: {distance_to_terminal} km, {travel_time} min (from Distance Matrix API)")
+        else:
+            # Fallback to geodesic distance if API fails
+            distance_to_terminal = calculate_distance(driver['coordinates'], terminal_coord)
+            travel_time = estimate_travel_time(distance_to_terminal)
+            print(f"  ⚠ Fallback to geodesic: {distance_to_terminal} km, {travel_time} min (estimated)")
 
-    # Add timing information to driver
-    driver['distance_to_terminal_km'] = round(distance_to_terminal, 2)
-    driver['travel_time_minutes'] = round(travel_time, 1)
-    driver['presentation_time'] = time_window['presentation_time_str']
-    driver['presentation_time_minutes'] = time_window['presentation_time_minutes']
-    driver['pickup_time_latest'] = time_window['pickup_time_latest_str']
-    driver['pickup_time_latest_minutes'] = time_window['pickup_time_latest_minutes']
+            if not error_info:
+                error_info = {
+                    'driver_index': idx + 1,
+                    'driver_name': driver.get('name', 'Unknown'),
+                    'address': driver['address'],
+                    'issue': 'Distance Matrix API failed - using geodesic estimate',
+                    'severity': 'info'
+                }
 
-    print(f"  → {idx+1}: Distance: {driver['distance_to_terminal_km']} km, Travel time: {travel_time} min, Pickup: {driver['pickup_time_latest']}, Present: {driver['presentation_time']}")
+        # Calculate pickup time window
+        presentation_time = driver.get('time', '08:00')
+        time_window = calculate_pickup_time_window(presentation_time, travel_time)
 
-    return idx, driver
+        # Add timing information to driver
+        driver['distance_to_terminal_km'] = round(distance_to_terminal, 2)
+        driver['travel_time_minutes'] = round(travel_time, 1)
+        driver['presentation_time'] = time_window['presentation_time_str']
+        driver['presentation_time_minutes'] = time_window['presentation_time_minutes']
+        driver['pickup_time_latest'] = time_window['pickup_time_latest_str']
+        driver['pickup_time_latest_minutes'] = time_window['pickup_time_latest_minutes']
+
+        print(f"  → {idx+1}: Distance: {driver['distance_to_terminal_km']} km, Travel time: {travel_time} min, Pickup: {driver['pickup_time_latest']}, Present: {driver['presentation_time']}")
+
+    except Exception as e:
+        print(f"  ❌ ERROR processing driver {idx+1}: {e}")
+        error_info = {
+            'driver_index': idx + 1,
+            'driver_name': driver.get('name', 'Unknown'),
+            'address': driver.get('address', 'N/A'),
+            'issue': f'Processing error: {str(e)}',
+            'severity': 'error'
+        }
+
+        # Set fallback values to ensure processing continues
+        if 'coordinates' not in driver:
+            driver['coordinates'] = {
+                'lat': -33.4489 + (random.random() - 0.5) * 0.1,
+                'lng': -70.6693 + (random.random() - 0.5) * 0.1
+            }
+
+        driver.setdefault('distance_to_terminal_km', 15.0)
+        driver.setdefault('travel_time_minutes', 30.0)
+        driver.setdefault('presentation_time', '08:00')
+        driver.setdefault('presentation_time_minutes', 480)
+        driver.setdefault('pickup_time_latest', '07:30')
+        driver.setdefault('pickup_time_latest_minutes', 450)
+
+    return idx, driver, error_info
 
 def uses_bus_mode(terminal):
     """Check if a terminal uses bus de acercamiento mode"""
@@ -624,11 +803,11 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
     if num_vans_override is not None:
         # User specified number of vans - use it directly (frontend already validated)
         num_vans = num_vans_override
-        print(f"Using user-configured number of vans: {num_vans}")
+        print(f"Using configured number of vans: {num_vans}")
     else:
-        # Auto-calculate optimal number of vans (limit to 2-5 range)
-        num_vans = max(2, min(5, len(drivers) // 10 + 1))
-        print(f"Auto-calculated number of vans: {num_vans}")
+        # Use DEFAULT_NUM_VANS (10 vans by default)
+        num_vans = DEFAULT_NUM_VANS
+        print(f"Using default fleet size: {num_vans} vans")
 
     # Cluster drivers using K-means
     print(f"Clustering into {num_vans} vans...")
@@ -966,6 +1145,8 @@ def handle_optimize(event):
             max_workers = min(10, len(drivers))
             print(f"Using {max_workers} parallel workers for geocoding")
 
+            geocoding_errors = []  # Track errors for reporting
+
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 # Submit all geocoding tasks
                 future_to_idx = {executor.submit(geocode_driver_parallel, driver_data): driver_data[0]
@@ -975,17 +1156,55 @@ def handle_optimize(event):
                 results = []
                 for future in as_completed(future_to_idx):
                     try:
-                        idx, geocoded_driver = future.result()
+                        idx, geocoded_driver, error_info = future.result()
                         results.append((idx, geocoded_driver))
+
+                        # Collect error information if any
+                        if error_info:
+                            geocoding_errors.append(error_info)
+
                     except Exception as e:
                         idx = future_to_idx[future]
                         print(f"Error geocoding driver {idx+1}: {e}")
-                        # Keep original driver data if geocoding fails
-                        results.append((idx, drivers[idx]))
+
+                        # Track critical error
+                        geocoding_errors.append({
+                            'driver_index': idx + 1,
+                            'driver_name': drivers[idx].get('name', 'Unknown'),
+                            'address': drivers[idx].get('address', 'N/A'),
+                            'issue': f'Critical processing failure: {str(e)}',
+                            'severity': 'error'
+                        })
+
+                        # Keep original driver data with fallback coordinates
+                        driver_with_fallback = drivers[idx].copy()
+                        if 'coordinates' not in driver_with_fallback:
+                            driver_with_fallback['coordinates'] = {
+                                'lat': -33.4489 + (random.random() - 0.5) * 0.1,
+                                'lng': -70.6693 + (random.random() - 0.5) * 0.1
+                            }
+                        results.append((idx, driver_with_fallback))
 
             # Sort results by original index to maintain order
             results.sort(key=lambda x: x[0])
             drivers = [driver for _, driver in results]
+
+            # Log error summary
+            if geocoding_errors:
+                print(f"\n⚠ Geocoding Issues Summary: {len(geocoding_errors)} address(es) had problems")
+                errors_by_severity = {
+                    'error': [e for e in geocoding_errors if e['severity'] == 'error'],
+                    'warning': [e for e in geocoding_errors if e['severity'] == 'warning'],
+                    'info': [e for e in geocoding_errors if e['severity'] == 'info']
+                }
+                if errors_by_severity['error']:
+                    print(f"  ❌ Errors: {len(errors_by_severity['error'])}")
+                if errors_by_severity['warning']:
+                    print(f"  ⚠ Warnings: {len(errors_by_severity['warning'])}")
+                if errors_by_severity['info']:
+                    print(f"  ℹ Info: {len(errors_by_severity['info'])}")
+            else:
+                print(f"\n✓ All addresses geocoded successfully")
 
             print(f"✓ Completed geocoding {len(drivers)} addresses in parallel")
 
@@ -1008,7 +1227,11 @@ def handle_optimize(event):
                 if uses_bus_mode(terminal):
                     # BUS MODE: Use bus de acercamiento
                     terminal_coord = geocode_terminal(terminal)
-                    vans, distance = optimize_with_bus_mode(terminal_drivers, terminal, terminal_coord, num_vans_config)
+
+                    # Use DEFAULT_NUM_VANS if not configured
+                    bus_num_vans = num_vans_config if num_vans_config is not None else DEFAULT_NUM_VANS
+
+                    vans, distance = optimize_with_bus_mode(terminal_drivers, terminal, terminal_coord, bus_num_vans)
                     all_vans.extend(vans)
                     total_distance += distance
                     total_vans += len([v for v in vans if v.get('is_van', False)])
@@ -1020,9 +1243,9 @@ def handle_optimize(event):
                         num_vans = num_vans_config
                         print(f"Using user-configured number of vans: {num_vans}")
                     else:
-                        # Auto-calculate optimal number of vans (limit to 2-5 range)
-                        num_vans = max(2, min(5, len(terminal_drivers) // 10 + 1))
-                        print(f"Auto-calculated number of vans: {num_vans}")
+                        # Use DEFAULT_NUM_VANS (10 vans by default)
+                        num_vans = DEFAULT_NUM_VANS
+                        print(f"Using default fleet size: {num_vans} vans")
 
                     # Cluster drivers using K-means
                     print(f"Clustering into {num_vans} vans...")
@@ -1084,7 +1307,10 @@ def handle_optimize(event):
                 'optimizationTime': '< 2 min',
                 'success': True,
                 'demoId': demo_id,
-                'usingBusMode': any(v.get('is_bus', False) for v in all_vans)
+                'usingBusMode': any(v.get('is_bus', False) for v in all_vans),
+                'geocodingIssues': geocoding_errors if geocoding_errors else None,
+                'hasIssues': len(geocoding_errors) > 0,
+                'optimizationMethod': 'OR-Tools with fallback'
             }
 
             # Track demo usage
