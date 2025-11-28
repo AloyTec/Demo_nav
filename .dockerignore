@@ -1,0 +1,77 @@
+# Git
+.git/
+.gitignore
+.github/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Build artifacts
+lambda_deploy_package/
+lambda_layer/
+lambda_deployment_*.zip
+lambda_layer_*.zip
+dist/
+build/
+
+# Documentation
+*.md
+CHECKLIST_*
+GUIA_*
+PROPUESTA_*
+PROJECT_*
+README_*
+LAMBDA_*
+ORTOOLS_*
+TIME_BASED_*
+GOOGLE_MAPS_*
+CALCULADORA_*
+ARCHIVOS_*
+DEPLOY_INSTRUCTIONS.md
+QUICK_START.txt
+
+# Data files (not needed in container)
+*.csv
+*.xls
+*.xlsx
+data/
+
+# Node modules
+node_modules/
+package.json
+package-lock.json
+
+# Config files not needed in container
+tailwind.config.js
+postcss.config.js
+vite.config.js
+vercel.json
+cors-config.json
+.env.example
+
+# Other deployment methods
+deploy_lambda.sh
+deploy_lambda_with_layers.sh
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.log
+tmp/
+temp/
+test_*.py
