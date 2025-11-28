@@ -52,13 +52,12 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
       const newStreetRoutes = {};
       const errors = {};
 
-      for (let i = 0; i < data.vans.length; i++) {
-        const van = data.vans[i];
-
+      // Create array of promises for parallel execution
+      const routePromises = data.vans.map(async (van, i) => {
         // Only fetch routes for vans with at least 2 waypoints
         if (!van.route || van.route.length < 2) {
           console.log(`⚠️ [MapView] Skipping ${van.name} - insufficient waypoints (${van.route?.length || 0})`);
-          continue;
+          return { index: i, route: null };
         }
 
         try {
@@ -89,12 +88,12 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
           console.log(`📦 [MapView] Response data for ${van.name}:`, result);
 
           if (result.success && result.route) {
-            newStreetRoutes[i] = result.route;
             console.log(`✅ [MapView] Street route loaded for ${van.name}:`);
             console.log(`   Original waypoints: ${van.route.length}`);
             console.log(`   Street route points: ${result.route.length}`);
             console.log(`   Distance: ${result.distance.toFixed(1)} km`);
             console.log(`   Duration: ${result.duration.toFixed(0)} min`);
+            return { index: i, route: result.route, error: null };
           } else {
             console.error(`❌ [MapView] Invalid response for ${van.name}:`, result);
             throw new Error(result.error || 'Unknown error');
@@ -102,12 +101,25 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
         } catch (error) {
           console.error(`❌ [MapView] Error fetching street route for ${van.name}:`, error);
           console.error(`   Error details:`, error.message);
-          errors[i] = error.message;
           // Fallback to original route
-          newStreetRoutes[i] = van.route;
           console.log(`⚠️ [MapView] Using fallback route for ${van.name}`);
+          return { index: i, route: van.route, error: error.message };
         }
-      }
+      });
+
+      // Execute all requests in parallel
+      console.log(`🚀 [MapView] Executing ${routePromises.length} route requests in parallel...`);
+      const results = await Promise.all(routePromises);
+
+      // Process results
+      results.forEach(result => {
+        if (result.route) {
+          newStreetRoutes[result.index] = result.route;
+        }
+        if (result.error) {
+          errors[result.index] = result.error;
+        }
+      });
 
       console.log('📊 [MapView] Final street routes loaded:', Object.keys(newStreetRoutes).length);
       console.log('📊 [MapView] Errors:', errors);
@@ -294,7 +306,7 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
                           </span>
                         </div>
                         <p className="text-sm text-gray-600 mb-2">
-                          {isBusStop ? 'Av. Pajaritos con Américo Vespucio' : van.destination}
+                          {isBusStop ? 'Av. Departamental esq Av. Pedro Aguirre Cerda' : van.destination}
                         </p>
                         <p className="text-xs text-gray-500 mb-1">
                           👥 Pasajeros: {van.drivers.length}
