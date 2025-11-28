@@ -43,7 +43,7 @@ export default async function handler(req, res) {
     console.log(`✅ [API] Validated ${waypoints.length} waypoints`);
 
     // Get API key from environment variables (secure!)
-    const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
+    const GOOGLE_MAPS_API_KEY = "xxxxx";
 
     if (!GOOGLE_MAPS_API_KEY) {
       console.error("❌ [API] GOOGLE_MAPS_API_KEY not configured");

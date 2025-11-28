@@ -1,6 +1,6 @@
 import json
 import base64
-import boto3
+
 import pandas as pd
 import numpy as np
 from io import BytesIO
@@ -19,8 +19,6 @@ from ortools.constraint_solver import pywrapcp
 import hashlib
 from pathlib import Path
 
-# AWS clients
-s3_client = boto3.client('s3')
 
 # Configuration
 BUCKET_NAME = 'route-optimizer-demo-889268462469'
