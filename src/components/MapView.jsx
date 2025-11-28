@@ -23,6 +23,7 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
   const [streetRoutes, setStreetRoutes] = useState({}); // Rutas por calles desde Google Maps
   const [loadingRoutes, setLoadingRoutes] = useState(false);
   const [routeErrors, setRouteErrors] = useState({});
+  const [hoveredRoute, setHoveredRoute] = useState(null); // Track which route is being hovered
 
   useEffect(() => {
     console.log('MapView data:', data); // DEBUG
@@ -178,8 +179,8 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
                 <Polyline
                   positions={routeToDisplay.map(point => [point.lat, point.lng])}
                   color={color}
-                  weight={isStreetRoute ? 4 : 3}
-                  opacity={isStreetRoute ? 0.9 : 0.8}
+                  weight={hoveredRoute === vanIndex ? (isStreetRoute ? 6 : 5) : (isStreetRoute ? 4 : 3)}
+                  opacity={hoveredRoute === null ? (isStreetRoute ? 0.9 : 0.8) : hoveredRoute === vanIndex ? 1 : 0.3}
                   dashArray={isStreetRoute ? null : "10, 5"}
                   lineJoin="round"
                   lineCap="round"
@@ -357,15 +358,27 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
             const color = isBus ? BUS_COLOR : COLORS[index % COLORS.length];
 
             return (
-              <div key={index} className="flex items-center gap-2">
+              <div
+                key={index}
+                className="flex items-center gap-2 p-2 rounded-lg transition-all duration-200 cursor-pointer hover:bg-gray-50"
+                onMouseEnter={() => setHoveredRoute(index)}
+                onMouseLeave={() => setHoveredRoute(null)}
+                style={{
+                  backgroundColor: hoveredRoute === index ? 'rgb(243, 244, 246)' : 'transparent',
+                  transform: hoveredRoute === index ? 'scale(1.02)' : 'scale(1)',
+                }}
+              >
                 {isBus ? (
                   <div className="w-8 h-8 flex items-center justify-center text-xl">
                     🚌
                   </div>
                 ) : (
                   <div
-                    className="w-4 h-4 rounded-full"
-                    style={{ backgroundColor: color }}
+                    className="w-4 h-4 rounded-full transition-transform duration-200"
+                    style={{
+                      backgroundColor: color,
+                      transform: hoveredRoute === index ? 'scale(1.3)' : 'scale(1)',
+                    }}
                   />
                 )}
                 <div className="text-sm">
