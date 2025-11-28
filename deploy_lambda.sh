@@ -33,7 +33,7 @@ mkdir -p $DEPLOY_DIR
 
 # Step 2: Install Python dependencies (using specific versions that work)
 echo -e "${YELLOW}[2/7] Installing Python dependencies...${NC}"
-echo "  Installing: pandas, numpy, geopy, scikit-learn, urllib3, openpyxl, xlrd"
+echo "  Installing: pandas, numpy, geopy, scikit-learn, urllib3, openpyxl, xlrd, ortools"
 pip install -t $DEPLOY_DIR \
     'pandas>=2.0,<2.4' \
     'numpy>=1.24,<1.27' \
@@ -42,6 +42,7 @@ pip install -t $DEPLOY_DIR \
     'urllib3>=2.0,<3.0' \
     'openpyxl>=3.0,<3.2' \
     'xlrd>=2.0,<2.1' \
+    'ortools>=9.8,<9.9' \
     --quiet --upgrade
 
 # Step 3: Copy Lambda function code
