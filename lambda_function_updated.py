@@ -473,9 +473,11 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
 
     # Determine number of vans needed
     if num_vans_override is not None:
+        # User specified number of vans - use it directly (frontend already validated)
         num_vans = num_vans_override
-        print(f"Using configured number of vans: {num_vans}")
+        print(f"Using user-configured number of vans: {num_vans}")
     else:
+        # Auto-calculate optimal number of vans (limit to 2-5 range)
         num_vans = max(2, min(5, len(drivers) // 10 + 1))
         print(f"Auto-calculated number of vans: {num_vans}")
 
@@ -856,9 +858,11 @@ def handle_optimize(event):
                 else:
                     # NORMAL MODE: Direct to terminal
                     if num_vans_config is not None:
+                        # User specified number of vans - use it directly (frontend already validated)
                         num_vans = num_vans_config
-                        print(f"Using configured number of vans: {num_vans}")
+                        print(f"Using user-configured number of vans: {num_vans}")
                     else:
+                        # Auto-calculate optimal number of vans (limit to 2-5 range)
                         num_vans = max(2, min(5, len(terminal_drivers) // 10 + 1))
                         print(f"Auto-calculated number of vans: {num_vans}")
 
