@@ -12,8 +12,14 @@ const Dashboard = ({ onDataUploaded, onOptimized, routeData }) => {
 
   // Configuration parameters
   const [numVans, setNumVans] = useState(3);
+  const [isAutoMode, setIsAutoMode] = useState(false);
   const [safetyMargin, setSafetyMargin] = useState(20);
   const [destinationTerminal, setDestinationTerminal] = useState('Terminal Conquistador (Av. 5 Poniente 1601, Maipú)');
+
+  // Validation states
+  const [showWarning, setShowWarning] = useState(false);
+  const [warningData, setWarningData] = useState(null);
+  const [parsedData, setParsedData] = useState(null);
 
   const handleFileUpload = async (file) => {
     setUploadedFile(file);
@@ -37,6 +43,44 @@ const Dashboard = ({ onDataUploaded, onOptimized, routeData }) => {
 
           onDataUploaded(response.data);
           setProgress({ stage: 'Datos procesados correctamente', percent: 50 });
+          setParsedData(response.data);
+
+          // Validate van count if not in auto mode
+          if (!isAutoMode) {
+            const driverCount = response.data.drivers.length;
+            const VAN_CAPACITY = 10;
+            const requiredVans = Math.ceil(driverCount / VAN_CAPACITY);
+
+            // Check if not enough vans
+            if (numVans < requiredVans) {
+              setShowWarning(true);
+              setWarningData({
+                type: 'insufficient',
+                driverCount,
+                selectedVans: numVans,
+                requiredVans,
+                capacity: numVans * VAN_CAPACITY
+              });
+              setLoading(false);
+              setProgress({ stage: '', percent: 0 });
+              return; // Stop optimization until user decides
+            }
+
+            // Check if too many vans
+            if (numVans > requiredVans) {
+              setShowWarning(true);
+              setWarningData({
+                type: 'excess',
+                driverCount,
+                selectedVans: numVans,
+                requiredVans,
+                unusedVans: numVans - requiredVans
+              });
+              setLoading(false);
+              setProgress({ stage: '', percent: 0 });
+              return; // Stop optimization until user confirms
+            }
+          }
 
           // Automatically trigger optimization
           await handleOptimize(response.data);
@@ -76,7 +120,7 @@ const Dashboard = ({ onDataUploaded, onOptimized, routeData }) => {
       const optimizationData = {
         ...(data || routeData),
         config: {
-          numVans: numVans,
+          numVans: isAutoMode ? null : numVans, // null = auto mode
           safetyMargin: safetyMargin / 100, // Convert percentage to decimal
           destinationTerminal: destinationTerminal
         }
@@ -123,18 +167,36 @@ const Dashboard = ({ onDataUploaded, onOptimized, routeData }) => {
             {/* Number of Vans */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Cantidad de Vans
+                Cantidad de Vans Disponibles
               </label>
-              <input
-                type="number"
-                min="1"
-                max="10"
-                value={numVans}
-                onChange={(e) => setNumVans(parseInt(e.target.value) || 1)}
-                disabled={loading}
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed text-lg font-semibold"
-              />
-              <p className="text-xs text-gray-500 mt-1">Entre 1 y 10 vans</p>
+              <div className="space-y-3">
+                <select
+                  value={numVans}
+                  onChange={(e) => setNumVans(parseInt(e.target.value))}
+                  disabled={loading || isAutoMode}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed text-lg font-semibold"
+                >
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(num => (
+                    <option key={num} value={num}>{num} van{num > 1 ? 's' : ''}</option>
+                  ))}
+                </select>
+
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isAutoMode}
+                    onChange={(e) => setIsAutoMode(e.target.checked)}
+                    disabled={loading}
+                    className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Modo Automático (Sistema decide)
+                  </span>
+                </label>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {isAutoMode ? 'El sistema calculará la cantidad óptima' : 'Selecciona entre 1 y 10 vans'}
+              </p>
             </div>
 
             {/* Safety Margin */}
@@ -180,7 +242,7 @@ const Dashboard = ({ onDataUploaded, onOptimized, routeData }) => {
           {/* Summary of Configuration */}
           <div className="mt-6 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
             <p className="text-sm text-blue-800">
-              <span className="font-semibold">Configuración Actual:</span> {numVans} van{numVans > 1 ? 's' : ''} con {safetyMargin}% de margen hacia {destinationTerminal.split('(')[0].trim()}
+              <span className="font-semibold">Configuración Actual:</span> {isAutoMode ? 'Modo Automático' : `${numVans} van${numVans > 1 ? 's' : ''}`} con {safetyMargin}% de margen hacia {destinationTerminal.split('(')[0].trim()}
             </p>
           </div>
         </div>
@@ -301,6 +363,104 @@ const Dashboard = ({ onDataUploaded, onOptimized, routeData }) => {
             </div>
           </div>
         </div>
+
+        {/* Warning Modal */}
+        {showWarning && warningData && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 md:p-8">
+              {warningData.type === 'insufficient' ? (
+                <>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <AlertCircle className="w-6 h-6 text-yellow-600" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800">Vans Insuficientes</h3>
+                  </div>
+                  <div className="space-y-3 mb-6 text-gray-700">
+                    <p className="text-sm md:text-base">
+                      Tienes <span className="font-bold text-blue-600">{warningData.driverCount} pasajeros</span> pero solo seleccionaste <span className="font-bold text-yellow-600">{warningData.selectedVans} van{warningData.selectedVans > 1 ? 's' : ''}</span>.
+                    </p>
+                    <p className="text-sm md:text-base">
+                      Con capacidad de 10 personas por van, tu selección solo puede transportar <span className="font-bold">{warningData.capacity} personas</span>.
+                    </p>
+                    <div className="p-3 bg-blue-50 rounded-lg border-2 border-blue-200">
+                      <p className="text-sm text-blue-800">
+                        <span className="font-semibold">Recomendación:</span> Necesitas al menos {warningData.requiredVans} van{warningData.requiredVans > 1 ? 's' : ''} para transportar a todos los pasajeros.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col md:flex-row gap-3">
+                    <button
+                      onClick={() => {
+                        setNumVans(warningData.requiredVans);
+                        setShowWarning(false);
+                        setWarningData(null);
+                      }}
+                      className="flex-1 px-4 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Usar {warningData.requiredVans} Vans
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsAutoMode(true);
+                        setShowWarning(false);
+                        setWarningData(null);
+                        handleOptimize(parsedData);
+                      }}
+                      className="flex-1 px-4 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      Modo Auto
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <AlertCircle className="w-6 h-6 text-orange-600" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800">Vans en Exceso</h3>
+                  </div>
+                  <div className="space-y-3 mb-6 text-gray-700">
+                    <p className="text-sm md:text-base">
+                      Tienes <span className="font-bold text-blue-600">{warningData.driverCount} pasajeros</span> pero seleccionaste <span className="font-bold text-orange-600">{warningData.selectedVans} vans</span>.
+                    </p>
+                    <p className="text-sm md:text-base">
+                      Solo necesitas <span className="font-bold">{warningData.requiredVans} van{warningData.requiredVans > 1 ? 's' : ''}</span> para transportar a todos los pasajeros de manera óptima.
+                    </p>
+                    <div className="p-3 bg-orange-50 rounded-lg border-2 border-orange-200">
+                      <p className="text-sm text-orange-800">
+                        <span className="font-semibold">Advertencia:</span> Usar más vans de las necesarias no es la opción más eficiente, pero puedes continuar si lo deseas.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col md:flex-row gap-3">
+                    <button
+                      onClick={() => {
+                        setNumVans(warningData.requiredVans);
+                        setShowWarning(false);
+                        setWarningData(null);
+                      }}
+                      className="flex-1 px-4 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Usar {warningData.requiredVans} Vans
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowWarning(false);
+                        setWarningData(null);
+                        handleOptimize(parsedData);
+                      }}
+                      className="flex-1 px-4 py-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition-colors"
+                    >
+                      Continuar Igual
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
