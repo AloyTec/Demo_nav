@@ -108,7 +108,16 @@ function App() {
           <div className="mt-8 p-4 bg-blue-700 rounded-lg hidden lg:block">
             <h3 className="font-semibold mb-2">Última Optimización</h3>
             <div className="text-sm space-y-1">
-              <p className="text-blue-200">Vans: {optimizedData.vans?.length || 0}</p>
+              <p className="text-blue-200">
+                Vans: {
+                  new Set(
+                    optimizedData.vans
+                      ?.filter(van => !van.name.toLowerCase().includes('bus'))
+                      .map(van => van.name.match(/Van\s+(\d+)/)?.[1])
+                      .filter(Boolean)
+                  ).size || 0
+                }
+              </p>
               <p className="text-blue-200">Conductores: {optimizedData.totalDrivers || 0}</p>
               <p className="text-green-300 font-semibold">✓ Optimizado</p>
             </div>
