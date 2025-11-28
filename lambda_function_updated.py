@@ -7,7 +7,9 @@ from io import BytesIO
 from datetime import datetime
 import time
 import random
-from geopy.geocoders import Nominatim
+import os
+import urllib3
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from geopy.distance import geodesic
 from sklearn.cluster import KMeans
 import uuid
@@ -20,6 +22,10 @@ dynamodb = boto3.resource('dynamodb')
 BUCKET_NAME = 'route-optimizer-demo-889268462469'
 TABLE_NAME = 'route-optimizer-demo-tracking'
 table = dynamodb.Table(TABLE_NAME)
+
+# Google Maps API Configuration
+GOOGLE_MAPS_API_KEY = os.environ.get('GOOGLE_MAPS_API_KEY', '')
+http = urllib3.PoolManager()
 
 # Van and Bus Configuration
 VAN_CAPACITY = 10  # Capacidad máxima por van
@@ -70,9 +76,6 @@ KNOWN_TERMINALS = {
 
 # Terminals that use bus mode
 TERMINALS_WITH_BUS = ['maipu', 'maipú', 'terminal maipu', 'terminal maipú']
-
-# Initialize geocoder
-geolocator = Nominatim(user_agent="route_optimizer_demo_chile", timeout=10)
 
 def cors_headers():
     """Return empty headers - CORS is handled by Lambda Function URL configuration"""
@@ -130,7 +133,16 @@ def geocode_terminal(terminal_name):
     return geocode_address(terminal_name)
 
 def geocode_address(address):
-    """Geocode an address to lat/lng coordinates with multiple fallback strategies"""
+    """
+    Geocode an address to lat/lng coordinates using Google Maps Geocoding API
+    with multiple fallback strategies
+    """
+    if not GOOGLE_MAPS_API_KEY:
+        print(f"  ❌ ERROR: GOOGLE_MAPS_API_KEY not configured")
+        return {
+            'lat': -33.4489 + (random.random() - 0.5) * 0.1,
+            'lng': -70.6693 + (random.random() - 0.5) * 0.1
+        }
 
     # Clean the address first
     cleaned_address = clean_address_for_geocoding(address)
@@ -144,25 +156,40 @@ def geocode_address(address):
     try:
         query = f"{cleaned_address}, Santiago, Chile"
         print(f"  Trying: {query}")
-        location = geolocator.geocode(query, timeout=10)
-        if location:
-            print(f"  ✓ Geocoded with full address: {cleaned_address}")
-            return {'lat': location.latitude, 'lng': location.longitude}
+
+        url = f"https://maps.googleapis.com/maps/api/geocode/json?address={urllib3.util.url.quote(query)}&key={GOOGLE_MAPS_API_KEY}"
+        response = http.request('GET', url, timeout=10.0)
+
+        if response.status == 200:
+            data = json.loads(response.data.decode('utf-8'))
+            if data.get('status') == 'OK' and len(data.get('results', [])) > 0:
+                location = data['results'][0]['geometry']['location']
+                print(f"  ✓ Geocoded with full address: {cleaned_address}")
+                return {'lat': location['lat'], 'lng': location['lng']}
+            elif data.get('status') == 'ZERO_RESULTS':
+                print(f"  Strategy 1: No results found")
+            else:
+                print(f"  Strategy 1 failed: {data.get('status')}")
     except Exception as e:
         print(f"  Strategy 1 failed: {e}")
 
     # Strategy 2: Try without number (just street and comuna)
     if base_address and comuna:
         try:
-            # Remove numbers from address
             import re
             street_only = re.sub(r'\d+', '', base_address).strip()
             query = f"{street_only}, {comuna}, Santiago, Chile"
             print(f"  Trying: {query}")
-            location = geolocator.geocode(query, timeout=10)
-            if location:
-                print(f"  ✓ Geocoded with street only: {street_only}, {comuna}")
-                return {'lat': location.latitude, 'lng': location.longitude}
+
+            url = f"https://maps.googleapis.com/maps/api/geocode/json?address={urllib3.util.url.quote(query)}&key={GOOGLE_MAPS_API_KEY}"
+            response = http.request('GET', url, timeout=10.0)
+
+            if response.status == 200:
+                data = json.loads(response.data.decode('utf-8'))
+                if data.get('status') == 'OK' and len(data.get('results', [])) > 0:
+                    location = data['results'][0]['geometry']['location']
+                    print(f"  ✓ Geocoded with street only: {street_only}, {comuna}")
+                    return {'lat': location['lat'], 'lng': location['lng']}
         except Exception as e:
             print(f"  Strategy 2 failed: {e}")
 
@@ -171,14 +198,20 @@ def geocode_address(address):
         try:
             query = f"{comuna}, Santiago, Chile"
             print(f"  Trying: {query}")
-            location = geolocator.geocode(query, timeout=10)
-            if location:
-                print(f"  ⚠ Using comuna center: {comuna}")
-                # Add small random offset to avoid all addresses in same comuna overlapping
-                return {
-                    'lat': location.latitude + (random.random() - 0.5) * 0.01,
-                    'lng': location.longitude + (random.random() - 0.5) * 0.01
-                }
+
+            url = f"https://maps.googleapis.com/maps/api/geocode/json?address={urllib3.util.url.quote(query)}&key={GOOGLE_MAPS_API_KEY}"
+            response = http.request('GET', url, timeout=10.0)
+
+            if response.status == 200:
+                data = json.loads(response.data.decode('utf-8'))
+                if data.get('status') == 'OK' and len(data.get('results', [])) > 0:
+                    location = data['results'][0]['geometry']['location']
+                    print(f"  ⚠ Using comuna center: {comuna}")
+                    # Add small random offset to avoid all addresses in same comuna overlapping
+                    return {
+                        'lat': location['lat'] + (random.random() - 0.5) * 0.01,
+                        'lng': location['lng'] + (random.random() - 0.5) * 0.01
+                    }
         except Exception as e:
             print(f"  Strategy 3 failed: {e}")
 
@@ -362,6 +395,55 @@ def track_demo_usage(demo_id, data):
         print(f"✓ Tracked demo usage: {demo_id}")
     except Exception as e:
         print(f"Error tracking demo: {e}")
+
+def geocode_driver_parallel(driver_data):
+    """
+    Geocode a single driver and calculate travel times (for parallel processing)
+
+    Args:
+        driver_data: Tuple of (index, driver, destination_terminal_config)
+
+    Returns:
+        Tuple of (index, driver_with_coordinates)
+    """
+    idx, driver, destination_terminal_config = driver_data
+
+    print(f"Geocoding {idx+1}: {driver['address']}")
+
+    # Geocode driver address
+    driver['coordinates'] = geocode_address(driver['address'])
+
+    # Determine terminal
+    if destination_terminal_config:
+        terminal = destination_terminal_config
+        driver['terminal'] = terminal
+    else:
+        terminal = driver.get('terminal', 'Terminal Aeropuerto T1')
+
+    # Geocode terminal
+    terminal_coord = geocode_terminal(terminal)
+
+    # Calculate distance to terminal
+    distance_to_terminal = calculate_distance(driver['coordinates'], terminal_coord)
+
+    # Estimate travel time
+    travel_time = estimate_travel_time(distance_to_terminal)
+
+    # Calculate pickup time window
+    presentation_time = driver.get('time', '08:00')
+    time_window = calculate_pickup_time_window(presentation_time, travel_time)
+
+    # Add timing information to driver
+    driver['distance_to_terminal_km'] = round(distance_to_terminal, 2)
+    driver['travel_time_minutes'] = travel_time
+    driver['presentation_time'] = time_window['presentation_time_str']
+    driver['presentation_time_minutes'] = time_window['presentation_time_minutes']
+    driver['pickup_time_latest'] = time_window['pickup_time_latest_str']
+    driver['pickup_time_latest_minutes'] = time_window['pickup_time_latest_minutes']
+
+    print(f"  → {idx+1}: Distance: {driver['distance_to_terminal_km']} km, Travel time: {travel_time} min, Pickup: {driver['pickup_time_latest']}, Present: {driver['presentation_time']}")
+
+    return idx, driver
 
 def uses_bus_mode(terminal):
     """Check if a terminal uses bus de acercamiento mode"""
@@ -713,43 +795,39 @@ def handle_optimize(event):
             # Generate demo ID for tracking
             demo_id = str(uuid.uuid4())
 
-            # Geocode all addresses and calculate travel times
-            print("Geocoding addresses and calculating travel times...")
-            for i, driver in enumerate(drivers):
-                print(f"Geocoding {i+1}/{len(drivers)}: {driver['address']}")
-                driver['coordinates'] = geocode_address(driver['address'])
+            # Geocode all addresses and calculate travel times IN PARALLEL
+            print(f"Geocoding {len(drivers)} addresses in parallel using Google Maps API...")
 
-                # Geocode terminal to calculate distance
-                # Override with configured terminal if provided
-                if destination_terminal_config:
-                    terminal = destination_terminal_config
-                    driver['terminal'] = terminal  # Update driver's terminal
-                else:
-                    terminal = driver.get('terminal', 'Terminal Aeropuerto T1')
+            # Prepare driver data for parallel processing
+            driver_data_list = [(i, driver, destination_terminal_config) for i, driver in enumerate(drivers)]
 
-                terminal_coord = geocode_terminal(terminal)
+            # Use ThreadPoolExecutor for parallel geocoding
+            # Max 10 workers to avoid overwhelming the API
+            max_workers = min(10, len(drivers))
+            print(f"Using {max_workers} parallel workers for geocoding")
 
-                # Calculate distance to terminal
-                distance_to_terminal = calculate_distance(driver['coordinates'], terminal_coord)
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit all geocoding tasks
+                future_to_idx = {executor.submit(geocode_driver_parallel, driver_data): driver_data[0]
+                                for driver_data in driver_data_list}
 
-                # Estimate travel time
-                travel_time = estimate_travel_time(distance_to_terminal)
+                # Collect results as they complete
+                results = []
+                for future in as_completed(future_to_idx):
+                    try:
+                        idx, geocoded_driver = future.result()
+                        results.append((idx, geocoded_driver))
+                    except Exception as e:
+                        idx = future_to_idx[future]
+                        print(f"Error geocoding driver {idx+1}: {e}")
+                        # Keep original driver data if geocoding fails
+                        results.append((idx, drivers[idx]))
 
-                # Calculate pickup time window
-                presentation_time = driver.get('time', '08:00')
-                time_window = calculate_pickup_time_window(presentation_time, travel_time)
+            # Sort results by original index to maintain order
+            results.sort(key=lambda x: x[0])
+            drivers = [driver for _, driver in results]
 
-                # Add timing information to driver
-                driver['distance_to_terminal_km'] = round(distance_to_terminal, 2)
-                driver['travel_time_minutes'] = travel_time
-                driver['presentation_time'] = time_window['presentation_time_str']
-                driver['presentation_time_minutes'] = time_window['presentation_time_minutes']
-                driver['pickup_time_latest'] = time_window['pickup_time_latest_str']
-                driver['pickup_time_latest_minutes'] = time_window['pickup_time_latest_minutes']
-
-                print(f"  → Distance: {driver['distance_to_terminal_km']} km, Travel time: {travel_time} min, Pickup by: {driver['pickup_time_latest']}, Present at: {driver['presentation_time']}")
-
-                time.sleep(0.1)  # Rate limiting - reduced from 0.5 to 0.1 for faster processing
+            print(f"✓ Completed geocoding {len(drivers)} addresses in parallel")
 
             # Sort drivers by presentation time (earliest first) within each terminal
             drivers_sorted = sorted(drivers, key=lambda d: d['presentation_time_minutes'])
