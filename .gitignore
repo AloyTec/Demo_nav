@@ -30,3 +30,9 @@ package/
 *.zip
 current_lambda/
 zia*
+lambda_package/
+lambda_fixed_extracted/
+lambda_fixed_reference.zip
+lambda_deploy_package/
+lambda_deployment*.zip
+lambda_updated_final.zip
