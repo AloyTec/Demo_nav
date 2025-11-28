@@ -499,10 +499,12 @@ def optimize_route_ortools(drivers, time_limit_seconds=30):
         time_limit_seconds: Maximum time for solver (default 30s)
 
     Returns:
-        Optimized route (list of drivers in optimal order)
+        tuple: (route, needs_manual_review) where:
+            - route: Optimized route (list of drivers in optimal order)
+            - needs_manual_review: True if optimization failed and requires manual intervention
     """
     if len(drivers) <= 1:
-        return drivers
+        return drivers, False
 
     try:
         # Create distance matrix
@@ -569,68 +571,82 @@ def optimize_route_ortools(drivers, time_limit_seconds=30):
 
             # Print optimization stats
             total_distance = solution.ObjectiveValue() / 1000.0  # Convert back to km
-            print(f"  OR-Tools: Optimized route with {len(route)} stops, total distance: {total_distance:.2f} km")
+            print(f"  ✓ OR-Tools: Optimized route with {len(route)} stops, total distance: {total_distance:.2f} km")
 
-            return route
+            return route, False
         else:
             print("  ⚠ OR-Tools: No solution found, falling back to 2-opt TSP")
-            return optimize_route_tsp_legacy(drivers)
+            route, success = optimize_route_tsp_legacy(drivers)
+            return route, not success  # If legacy TSP failed, needs manual review
 
     except Exception as e:
         print(f"  ⚠ OR-Tools optimization failed: {e}, falling back to 2-opt TSP")
-        return optimize_route_tsp_legacy(drivers)
+        route, success = optimize_route_tsp_legacy(drivers)
+        return route, not success  # If legacy TSP failed, needs manual review
 
 
 def optimize_route_tsp_legacy(drivers):
-    """Legacy TSP algorithm with 2-opt optimization (fallback)"""
+    """
+    Legacy TSP algorithm with 2-opt optimization (fallback)
+
+    Returns:
+        tuple: (route, success) where success is True if optimization completed normally
+    """
     if len(drivers) <= 1:
-        return drivers
+        return drivers, True
 
-    # Greedy nearest neighbor
-    route = [drivers[0]]
-    remaining = drivers[1:]
+    try:
+        # Greedy nearest neighbor
+        route = [drivers[0]]
+        remaining = drivers[1:]
 
-    while remaining:
-        last = route[-1]
-        nearest = min(remaining, key=lambda d: calculate_distance(
-            last['coordinates'], d['coordinates']
-        ))
-        route.append(nearest)
-        remaining.remove(nearest)
+        while remaining:
+            last = route[-1]
+            nearest = min(remaining, key=lambda d: calculate_distance(
+                last['coordinates'], d['coordinates']
+            ))
+            route.append(nearest)
+            remaining.remove(nearest)
 
-    # 2-opt improvement
-    improved = True
-    max_iterations = 50
-    iteration = 0
+        # 2-opt improvement
+        improved = True
+        max_iterations = 50
+        iteration = 0
 
-    while improved and iteration < max_iterations:
-        improved = False
-        iteration += 1
+        while improved and iteration < max_iterations:
+            improved = False
+            iteration += 1
 
-        for i in range(1, len(route) - 2):
-            for j in range(i + 1, len(route)):
-                if j - i == 1:
-                    continue
+            for i in range(1, len(route) - 2):
+                for j in range(i + 1, len(route)):
+                    if j - i == 1:
+                        continue
 
-                current_dist = (
-                    calculate_distance(route[i-1]['coordinates'], route[i]['coordinates']) +
-                    calculate_distance(route[j-1]['coordinates'], route[j % len(route)]['coordinates'])
-                )
+                    current_dist = (
+                        calculate_distance(route[i-1]['coordinates'], route[i]['coordinates']) +
+                        calculate_distance(route[j-1]['coordinates'], route[j % len(route)]['coordinates'])
+                    )
 
-                new_dist = (
-                    calculate_distance(route[i-1]['coordinates'], route[j-1]['coordinates']) +
-                    calculate_distance(route[i]['coordinates'], route[j % len(route)]['coordinates'])
-                )
+                    new_dist = (
+                        calculate_distance(route[i-1]['coordinates'], route[j-1]['coordinates']) +
+                        calculate_distance(route[i]['coordinates'], route[j % len(route)]['coordinates'])
+                    )
 
-                if new_dist < current_dist:
-                    route[i:j] = reversed(route[i:j])
-                    improved = True
+                    if new_dist < current_dist:
+                        route[i:j] = reversed(route[i:j])
+                        improved = True
+                        break
+
+                if improved:
                     break
 
-            if improved:
-                break
+        return route, True
 
-    return route
+    except Exception as e:
+        print(f"  ❌ CRITICAL: Legacy TSP optimization failed: {e}")
+        print(f"  ⚠ Returning unoptimized route - REQUIRES MANUAL REVIEW")
+        # Return drivers in original order as absolute last resort
+        return drivers, False
 
 
 def optimize_route_tsp(drivers):
@@ -638,6 +654,11 @@ def optimize_route_tsp(drivers):
     Optimize route using OR-Tools (preferred) with fallback to 2-opt TSP
 
     This is the main function called by the optimization logic.
+
+    Returns:
+        tuple: (route, needs_manual_review) where:
+            - route: Optimized route (list of drivers in optimal order)
+            - needs_manual_review: True if optimization failed and requires manual intervention
     """
     return optimize_route_ortools(drivers)
 
@@ -796,6 +817,12 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
     1. Van picks up Group 1 drivers and drops them at bus stop
     2. Van returns and picks up Group 2 drivers, takes them directly to terminal
     3. Bus takes all Group 1 passengers from bus stop to terminal
+
+    Returns:
+        tuple: (vans, total_distance, needs_manual_review) where:
+            - vans: List of van/bus configurations
+            - total_distance: Total distance in km
+            - needs_manual_review: True if any route optimization failed
     """
     print(f"Using BUS MODE for {len(drivers)} drivers to {terminal}")
 
@@ -827,6 +854,7 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
     vans = []
     bus_passengers = []  # Accumulate all Group 1 passengers for the bus
     total_distance = 0
+    needs_manual_review = False  # Track if any optimization failed
 
     for van_idx, cluster in enumerate(clusters):
         if not cluster:
@@ -839,7 +867,11 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
 
         # GROUP 1: Optimize route home → bus stop
         if group_1:
-            route_1 = optimize_route_tsp(group_1)
+            route_1, needs_review_1 = optimize_route_tsp(group_1)
+            if needs_review_1:
+                needs_manual_review = True
+                print(f"  ⚠ Van {van_idx + 1} - Grupo 1 requires manual review")
+
             route_1_coords = [d['coordinates'] for d in route_1]
             route_1_coords.append(BUS_STOP_MAIPU)  # End at bus stop
 
@@ -859,14 +891,19 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
                 'capacity': VAN_CAPACITY,
                 'utilization': len(route_1) / VAN_CAPACITY * 100,
                 'trip_type': 'to_bus',
-                'is_van': True
+                'is_van': True,
+                'needs_manual_review': needs_review_1
             })
 
             bus_passengers.extend(group_1)
 
         # GROUP 2: Optimize route home → terminal direct
         if group_2:
-            route_2 = optimize_route_tsp(group_2)
+            route_2, needs_review_2 = optimize_route_tsp(group_2)
+            if needs_review_2:
+                needs_manual_review = True
+                print(f"  ⚠ Van {van_idx + 1} - Grupo 2 requires manual review")
+
             route_2_coords = [d['coordinates'] for d in route_2]
             route_2_coords.append(terminal_coord)  # End at terminal
 
@@ -886,7 +923,8 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
                 'capacity': VAN_CAPACITY,
                 'utilization': len(route_2) / VAN_CAPACITY * 100,
                 'trip_type': 'to_terminal',
-                'is_van': True
+                'is_van': True,
+                'needs_manual_review': needs_review_2
             })
 
     # Create BUS route (bus stop → terminal)
@@ -924,8 +962,12 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
             'is_bus': True
         })
 
-    print(f"Bus mode optimization complete: {len(vans)} vehicles, {total_distance:.1f} km total")
-    return vans, total_distance
+    if needs_manual_review:
+        print(f"⚠ Bus mode optimization complete: {len(vans)} vehicles, {total_distance:.1f} km total - REQUIRES MANUAL REVIEW")
+    else:
+        print(f"✓ Bus mode optimization complete: {len(vans)} vehicles, {total_distance:.1f} km total")
+
+    return vans, total_distance, needs_manual_review
 
 def handle_upload(event):
     """Handle file upload"""
@@ -1219,6 +1261,7 @@ def handle_optimize(event):
             all_vans = []
             total_distance = 0
             total_vans = 0
+            routes_need_manual_review = False  # Track if any route needs manual review
 
             for terminal, terminal_drivers in terminal_groups.items():
                 print(f"\nProcessing {len(terminal_drivers)} drivers for terminal: {terminal}")
@@ -1231,7 +1274,9 @@ def handle_optimize(event):
                     # Use DEFAULT_NUM_VANS if not configured
                     bus_num_vans = num_vans_config if num_vans_config is not None else DEFAULT_NUM_VANS
 
-                    vans, distance = optimize_with_bus_mode(terminal_drivers, terminal, terminal_coord, bus_num_vans)
+                    vans, distance, needs_review = optimize_with_bus_mode(terminal_drivers, terminal, terminal_coord, bus_num_vans)
+                    if needs_review:
+                        routes_need_manual_review = True
                     all_vans.extend(vans)
                     total_distance += distance
                     total_vans += len([v for v in vans if v.get('is_van', False)])
@@ -1266,7 +1311,10 @@ def handle_optimize(event):
                         if not cluster:
                             continue
 
-                        optimized_route = optimize_route_tsp(cluster)
+                        optimized_route, needs_review = optimize_route_tsp(cluster)
+                        if needs_review:
+                            routes_need_manual_review = True
+                            print(f"  ⚠ Van {total_vans + i + 1} requires manual review")
 
                         route_distance = 0
                         route_coordinates = []
@@ -1289,7 +1337,8 @@ def handle_optimize(event):
                             'destination': terminal,
                             'capacity': VAN_CAPACITY,
                             'utilization': len(optimized_route) / VAN_CAPACITY * 100,
-                            'is_van': True
+                            'is_van': True,
+                            'needs_manual_review': needs_review
                         })
 
                     total_vans += num_vans
@@ -1297,6 +1346,18 @@ def handle_optimize(event):
             # Calculate metrics
             manual_distance = total_distance * 1.12
             distance_saved = ((manual_distance - total_distance) / manual_distance) * 100
+
+            # Determine optimization method description
+            if routes_need_manual_review:
+                optimization_method = 'Requiere Revisión Manual - Todas las estrategias de optimización fallaron'
+                print("\n" + "="*70)
+                print("⚠ ATENCIÓN: SE REQUIERE INTERVENCIÓN MANUAL")
+                print("="*70)
+                print("Algunas rutas no pudieron ser optimizadas correctamente.")
+                print("Por favor, revise manualmente las rutas marcadas con 'needs_manual_review'.")
+                print("="*70 + "\n")
+            else:
+                optimization_method = 'OR-Tools con fallback a TSP 2-opt'
 
             result = {
                 'vans': all_vans,
@@ -1310,7 +1371,9 @@ def handle_optimize(event):
                 'usingBusMode': any(v.get('is_bus', False) for v in all_vans),
                 'geocodingIssues': geocoding_errors if geocoding_errors else None,
                 'hasIssues': len(geocoding_errors) > 0,
-                'optimizationMethod': 'OR-Tools with fallback'
+                'optimizationMethod': optimization_method,
+                'requiresManualReview': routes_need_manual_review,
+                'manualReviewMessage': 'Algunas rutas requieren revisión manual debido a fallos en la optimización automática.' if routes_need_manual_review else None
             }
 
             # Track demo usage
