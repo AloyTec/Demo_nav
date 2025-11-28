@@ -34,26 +34,26 @@ PICKUP_TIME_MINUTES = 5  # Tiempo estimado de recogida por pasajero
 
 # Terminal Maipú - Bus stop location (fixed location near the terminal)
 BUS_STOP_MAIPU = {
-    'lat': -33.5115,  # Cerca del terminal Maipú
-    'lng': -70.7646,
-    'address': 'Punto de Encuentro - Av. Pajaritos con Américo Vespucio'
+    'lat': -33.48343,  # Av. Departamental esq Av. Pedro Aguirre Cerda (Metro Cerrillos)
+    'lng': -70.69556,
+    'address': 'Punto de Encuentro - Av. Departamental esq Av. Pedro Aguirre Cerda'
 }
 
 # Known terminal coordinates (to avoid geocoding errors)
 KNOWN_TERMINALS = {
     'terminal conquistador': {
-        'lat': -33.5132,  # Av. 5 Poniente 1601, Maipú
-        'lng': -70.7591,
+        'lat': -33.51505,  # Av. 5 Poniente 1601, Maipú
+        'lng': -70.8044,
         'address': 'Terminal Conquistador (Av. 5 Poniente 1601, Maipú)'
     },
     'terminal maipu': {
-        'lat': -33.5132,  # Same as Terminal Conquistador - most common terminal in Maipú
-        'lng': -70.7591,
+        'lat': -33.51505,  # Same as Terminal Conquistador - most common terminal in Maipú
+        'lng': -70.8044,
         'address': 'Terminal Maipú'
     },
     'terminal maipú': {
-        'lat': -33.5132,
-        'lng': -70.7591,
+        'lat': -33.51505,
+        'lng': -70.8044,
         'address': 'Terminal Maipú'
     },
     'terminal aeropuerto t1': {
@@ -488,7 +488,7 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
         for passenger in bus_passengers:
             bus_driver_list.append({
                 **passenger,
-                'pickup_location': 'Bus Stop - Av. Pajaritos con Américo Vespucio'
+                'pickup_location': 'Bus Stop - Av. Departamental esq Av. Pedro Aguirre Cerda'
             })
 
         vans.append({
@@ -749,7 +749,7 @@ def handle_optimize(event):
 
                 print(f"  → Distance: {driver['distance_to_terminal_km']} km, Travel time: {travel_time} min, Pickup by: {driver['pickup_time_latest']}, Present at: {driver['presentation_time']}")
 
-                time.sleep(0.5)  # Rate limiting - reduced from 1.0 to 0.5 for faster processing
+                time.sleep(0.1)  # Rate limiting - reduced from 0.5 to 0.1 for faster processing
 
             # Sort drivers by presentation time (earliest first) within each terminal
             drivers_sorted = sorted(drivers, key=lambda d: d['presentation_time_minutes'])
