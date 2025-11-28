@@ -179,11 +179,22 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
                 <Polyline
                   positions={routeToDisplay.map(point => [point.lat, point.lng])}
                   color={color}
-                  weight={hoveredRoute === vanIndex ? (isStreetRoute ? 6 : 5) : (isStreetRoute ? 4 : 3)}
-                  opacity={hoveredRoute === null ? (isStreetRoute ? 0.9 : 0.8) : hoveredRoute === vanIndex ? 1 : 0.3}
+                  weight={hoveredRoute === null
+                    ? (isStreetRoute ? 4 : 3)
+                    : hoveredRoute === vanIndex
+                      ? (isStreetRoute ? 8 : 7)
+                      : (isStreetRoute ? 2 : 1.5)
+                  }
+                  opacity={hoveredRoute === null
+                    ? (isStreetRoute ? 0.9 : 0.8)
+                    : hoveredRoute === vanIndex
+                      ? 1
+                      : 0.2
+                  }
                   dashArray={isStreetRoute ? null : "10, 5"}
                   lineJoin="round"
                   lineCap="round"
+                  className={hoveredRoute === vanIndex ? 'route-highlighted' : ''}
                 />
               )}
 
@@ -360,12 +371,15 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
             return (
               <div
                 key={index}
-                className="flex items-center gap-2 p-2 rounded-lg transition-all duration-200 cursor-pointer hover:bg-gray-50"
+                className="flex items-center gap-2 p-3 rounded-lg transition-all duration-200 cursor-pointer"
                 onMouseEnter={() => setHoveredRoute(index)}
                 onMouseLeave={() => setHoveredRoute(null)}
                 style={{
-                  backgroundColor: hoveredRoute === index ? 'rgb(243, 244, 246)' : 'transparent',
-                  transform: hoveredRoute === index ? 'scale(1.02)' : 'scale(1)',
+                  backgroundColor: hoveredRoute === index ? 'rgb(239, 246, 255)' : 'transparent',
+                  transform: hoveredRoute === index ? 'scale(1.05)' : 'scale(1)',
+                  boxShadow: hoveredRoute === index ? '0 4px 12px rgba(0, 0, 0, 0.15)' : 'none',
+                  border: hoveredRoute === index ? `2px solid ${color}` : '2px solid transparent',
+                  opacity: hoveredRoute === null ? 1 : hoveredRoute === index ? 1 : 0.5,
                 }}
               >
                 {isBus ? (
@@ -374,16 +388,19 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
                   </div>
                 ) : (
                   <div
-                    className="w-4 h-4 rounded-full transition-transform duration-200"
+                    className="w-5 h-5 rounded-full transition-all duration-200"
                     style={{
                       backgroundColor: color,
-                      transform: hoveredRoute === index ? 'scale(1.3)' : 'scale(1)',
+                      transform: hoveredRoute === index ? 'scale(1.4)' : 'scale(1)',
+                      boxShadow: hoveredRoute === index ? `0 0 12px ${color}` : 'none',
                     }}
                   />
                 )}
-                <div className="text-sm">
-                  <p className="font-semibold">{van.name}</p>
-                  <p className="text-gray-500">
+                <div className="text-sm flex-1">
+                  <p className={`font-semibold transition-all duration-200 ${hoveredRoute === index ? 'text-base' : ''}`}>
+                    {van.name}
+                  </p>
+                  <p className="text-gray-500 text-xs">
                     {van.drivers.length} {isBus ? 'pasajeros' : 'conductores'} • {van.totalDistance?.toFixed(1)} km
                   </p>
                 </div>
