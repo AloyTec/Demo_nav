@@ -32,3 +32,11 @@ package/
 current_lambda/
 lambda_function.py
 zia*
+lambda_package/
+lambda_fixed_extracted/
+lambda_fixed_reference.zip
+lambda_deploy_package/
+lambda_deployment*.zip
+lambda_updated_final.zip
+lambda_fixed_s3/
+lambda_fixed_from_s3.zip

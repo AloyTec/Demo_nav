@@ -9,6 +9,7 @@ import time
 import random
 import os
 import urllib3
+from urllib.parse import quote
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from geopy.distance import geodesic
 from sklearn.cluster import KMeans
@@ -189,7 +190,7 @@ def geocode_address(address):
         query = f"{cleaned_address}, Santiago, Chile"
         print(f"  Trying: {query}")
 
-        url = f"https://maps.googleapis.com/maps/api/geocode/json?address={urllib3.util.url.quote(query)}&key={GOOGLE_MAPS_API_KEY}"
+        url = f"https://maps.googleapis.com/maps/api/geocode/json?address={quote(query)}&key={GOOGLE_MAPS_API_KEY}"
         response = http.request('GET', url, timeout=10.0)
 
         if response.status == 200:
@@ -231,7 +232,7 @@ def geocode_address(address):
             query = f"{street_only}, {comuna}, Santiago, Chile"
             print(f"  Trying: {query}")
 
-            url = f"https://maps.googleapis.com/maps/api/geocode/json?address={urllib3.util.url.quote(query)}&key={GOOGLE_MAPS_API_KEY}"
+            url = f"https://maps.googleapis.com/maps/api/geocode/json?address={quote(query)}&key={GOOGLE_MAPS_API_KEY}"
             response = http.request('GET', url, timeout=10.0)
 
             if response.status == 200:
@@ -259,7 +260,7 @@ def geocode_address(address):
             query = f"{comuna}, Santiago, Chile"
             print(f"  Trying: {query}")
 
-            url = f"https://maps.googleapis.com/maps/api/geocode/json?address={urllib3.util.url.quote(query)}&key={GOOGLE_MAPS_API_KEY}"
+            url = f"https://maps.googleapis.com/maps/api/geocode/json?address={quote(query)}&key={GOOGLE_MAPS_API_KEY}"
             response = http.request('GET', url, timeout=10.0)
 
             if response.status == 200:
