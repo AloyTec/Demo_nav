@@ -49,9 +49,10 @@ const Dashboard = ({ onDataUploaded, onOptimized, routeData }) => {
           if (!isAutoMode) {
             const driverCount = response.data.drivers.length;
             const VAN_CAPACITY = 10;
-            const requiredVans = Math.ceil(driverCount / VAN_CAPACITY);
+            const TRIPS_PER_VAN = 2; // Maximum 2 trips per van
+            const requiredVans = Math.ceil(driverCount / (VAN_CAPACITY * TRIPS_PER_VAN));
 
-            // Check if not enough vans
+            // Check if not enough vans (even with 2 trips)
             if (numVans < requiredVans) {
               setShowWarning(true);
               setWarningData({
@@ -59,7 +60,7 @@ const Dashboard = ({ onDataUploaded, onOptimized, routeData }) => {
                 driverCount,
                 selectedVans: numVans,
                 requiredVans,
-                capacity: numVans * VAN_CAPACITY
+                capacity: numVans * VAN_CAPACITY * TRIPS_PER_VAN
               });
               setLoading(false);
               setProgress({ stage: '', percent: 0 });
