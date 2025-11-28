@@ -109,12 +109,12 @@ Sistema web inteligente que utiliza **Inteligencia Artificial** y **algoritmos d
 - **Axios** - Comunicación con API
 
 ### Backend
-- **Python 3.11+** - Lenguaje robusto y escalable
-- **Flask** - Framework web ligero
+- **AWS Lambda** - Serverless compute (Python 3.11+)
 - **Pandas** - Procesamiento de datos Excel
-- **Scikit-learn** - Algoritmos de Machine Learning
-- **Geopy** - Geocodificación de direcciones
+- **Scikit-learn** - Algoritmos de Machine Learning (K-Means)
+- **Google Maps API** - Geocodificación y rutas
 - **NumPy** - Cálculos numéricos optimizados
+- **DynamoDB** - Tracking de uso y analytics
 
 ### Infraestructura (Propuesta)
 - **Hosting:** AWS / Google Cloud / Azure
