@@ -11,7 +11,16 @@ const KPIDashboard = ({ data }) => {
 
   // Calculate KPIs
   const totalDrivers = data.totalDrivers || 0;
-  const totalVans = data.vans.length;
+
+  // Count unique vans (excluding bus and multiple trips)
+  const uniqueVans = new Set(
+    data.vans
+      .filter(van => !van.name.toLowerCase().includes('bus'))
+      .map(van => van.name.match(/Van\s+(\d+)/)?.[1])
+      .filter(Boolean)
+  );
+  const totalVans = uniqueVans.size;
+
   const totalDistance = data.totalDistance || 0;
   const avgDriversPerVan = (totalDrivers / totalVans).toFixed(1);
   const estimatedTimeSaved = data.timeSaved || '15-20';
