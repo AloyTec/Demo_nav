@@ -488,7 +488,7 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
         for passenger in bus_passengers:
             bus_driver_list.append({
                 **passenger,
-                'pickup_location': 'Bus Stop - Av. Pajaritos con Américo Vespucio'
+                'pickup_location': 'Bus Stop - Av. Departamental esq Av. Pedro Aguirre Cerda'
             })
 
         vans.append({
