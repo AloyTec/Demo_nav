@@ -51,21 +51,22 @@ Sistema inteligente para optimizar rutas de transporte de conductores usando alg
 - **Axios** - Cliente HTTP
 
 ### Backend
-- **Python 3.11+** - Lenguaje principal
-- **Flask** - API REST ligera
+- **AWS Lambda** - Serverless compute (Python 3.11+)
 - **Pandas** - Procesamiento de datos
-- **Scikit-learn** - Algoritmos ML
-- **Geopy** - Geocodificación
+- **Scikit-learn** - Algoritmos ML (K-Means clustering)
+- **Google Maps API** - Geocodificación y rutas
 - **NumPy** - Cálculos numéricos
+- **DynamoDB** - Tracking de uso
 
 ---
 
 ## 🚀 Instalación y Ejecución
 
 ### Prerequisitos
-- Node.js 18+ 
-- Python 3.11+
+- Node.js 18+
 - npm o yarn
+- Cuenta AWS (para el backend Lambda)
+- Google Maps API Key
 
 ### 1. Instalar dependencias del Frontend
 
@@ -73,35 +74,34 @@ Sistema inteligente para optimizar rutas de transporte de conductores usando alg
 npm install
 ```
 
-### 2. Instalar dependencias del Backend
+### 2. Configurar Variables de Entorno
+
+Crea un archivo `.env` en la raíz del proyecto:
 
 ```bash
-cd backend
-pip install -r requirements.txt
+VITE_API_URL=https://your-lambda-url.lambda-url.us-east-1.on.aws
+GOOGLE_MAPS_API_KEY=your_google_maps_api_key
 ```
 
-### 3. Ejecutar el Backend (Puerto 5000)
-
-```bash
-cd backend
-python app.py
-```
-
-Verás:
-```
-🚀 Starting Route Optimizer API...
-📍 Server running on http://localhost:5000
-```
-
-### 4. Ejecutar el Frontend (Puerto 3000)
-
-En otra terminal:
+### 3. Ejecutar el Frontend (Puerto 3000)
 
 ```bash
 npm run dev
 ```
 
 Abre tu navegador en: **http://localhost:3000**
+
+### 4. Backend (AWS Lambda)
+
+El backend está desplegado en AWS Lambda. Para actualizar:
+
+```bash
+# Ver DEPLOY_INSTRUCTIONS.md para instrucciones completas
+aws lambda update-function-code \
+  --function-name route-optimizer-lambda \
+  --zip-file fileb://lambda-function-updated.zip \
+  --region us-east-1
+```
 
 ---
 
@@ -262,15 +262,16 @@ def balance_load(clusters):
 ## 🔧 Configuración Avanzada
 
 ### Ajustar número de vans
-En `backend/app.py`, línea 103:
+En `lambda_function_updated.py`, línea 479:
 ```python
 num_vans = max(2, min(5, len(drivers) // 10 + 1))
 ```
 
 ### Ajustar capacidad de vans
-En `backend/app.py`, línea 139:
+En `lambda_function_updated.py`, línea 31:
 ```python
-'capacity': 12,  # Cambiar según necesidad
+VAN_CAPACITY = 10  # Capacidad máxima por van
+BUS_CAPACITY = 40  # Capacidad del bus de acercamiento
 ```
 
 ### Cambiar centro del mapa
@@ -284,9 +285,10 @@ const [center, setCenter] = useState([19.4326, -99.1332]); // CDMX
 ## 📝 Notas Técnicas
 
 ### Geocodificación
-- Utiliza OpenStreetMap (Nominatim)
-- Rate limit: 1 request por segundo
-- Fallback a coordenadas aleatorias en caso de error
+- Utiliza Google Maps Geocoding API (production)
+- Geocodificación en paralelo con ThreadPoolExecutor (10 workers)
+- Múltiples estrategias de fallback para direcciones ambiguas
+- Coordenadas conocidas predefinidas para terminales comunes
 
 ### Optimización
 - Tiempo promedio: < 2 minutos

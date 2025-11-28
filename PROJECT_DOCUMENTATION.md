@@ -92,14 +92,15 @@ Sistema web de optimización de rutas para transporte de conductores desde sus h
 │  └────┬─────────────┘  │                     │
 └───────┼────────────────┘                     │
         │                                       │
-        │                                       │ Routes API v2
-        │ Geocoding                             ▼
-        ▼                                ┌──────────────────────┐
-┌────────────────────┐                  │  GOOGLE MAPS API     │
-│   NOMINATIM        │                  │  Routes API v2       │
-│   (Geocoding)      │                  │  - computeRoutes     │
-└────────────────────┘                  │  - Traffic-aware     │
-                                        └──────────────────────┘
+        │                                       │
+        │ Geocoding + Routes                    │
+        ▼                                       ▼
+┌──────────────────────────────────────────────────┐
+│           GOOGLE MAPS API                        │
+│   - Geocoding API (direcciones → coordenadas)   │
+│   - Routes API v2 (rutas por calles)            │
+│   - computeRoutes (traffic-aware)               │
+└──────────────────────────────────────────────────┘
         │
         │ Track usage
         ▼
@@ -152,9 +153,10 @@ POST https://lambda-url.amazonaws.com/
    - Terminal Destino
    - Hora Presentación
 
-3. Geocodificar direcciones (Nominatim)
+3. Geocodificar direcciones (Google Maps Geocoding API - en paralelo)
    - Casa → coordenadas {lat, lng}
    - Terminal → coordenadas {lat, lng}
+   - Usa ThreadPoolExecutor (10 workers) para geocodificación paralela
 
 4. Agrupar por terminal destino
 
@@ -539,20 +541,28 @@ POST https://routes.googleapis.com/directions/v2:computeRoutes
 - ✅ Preview deployments por rama
 - ✅ Edge network CDN
 
-### 4. Nominatim (OpenStreetMap)
+### 4. Google Maps Geocoding API
 
-**Propósito**: Geocodificación de direcciones (gratuito)
+**Propósito**: Geocodificación precisa de direcciones en Santiago, Chile
 
 **Implementación**:
 ```python
-from geopy.geocoders import Nominatim
+import urllib3
+import json
 
-geolocator = Nominatim(user_agent="route_optimizer_demo_chile", timeout=10)
-location = geolocator.geocode("Av. Providencia 1234, Santiago, Chile")
-# → {latitude: -33.4489, longitude: -70.6693}
+http = urllib3.PoolManager()
+url = f"https://maps.googleapis.com/maps/api/geocode/json?address={address}&key={API_KEY}"
+response = http.request('GET', url, timeout=10.0)
+data = json.loads(response.data.decode('utf-8'))
+location = data['results'][0]['geometry']['location']
+# → {lat: -33.4489, lng: -70.6693}
 ```
 
-**Rate Limit**: 1 request/second (cumplimos con sleep automático)
+**Features**:
+- ✅ Geocodificación paralela (ThreadPoolExecutor con 10 workers)
+- ✅ Múltiples estrategias de fallback para direcciones ambiguas
+- ✅ Coordenadas predefinidas para terminales conocidos
+- ✅ Sin rate limits estrictos (basado en API quota)
 
 ### 5. AWS DynamoDB
 
@@ -674,7 +684,7 @@ TABLE_NAME=route-optimizer-demo-tracking
 | **Capacidad por van** | 10 pasajeros |
 | **Capacidad bus** | 40 pasajeros |
 | **Tiempo de procesamiento** | 3-10 segundos (40 conductores) |
-| **Precisión geocodificación** | ~95% (Nominatim) |
+| **Precisión geocodificación** | ~98% (Google Maps API) |
 | **Waypoints por ruta** | Hasta 25 (Google Routes API) |
 
 ### Límites Técnicos
@@ -865,7 +875,6 @@ Lambda → Functions → route-optimizer → Monitor → View logs in CloudWatch
 - React, Vite, Tailwind CSS
 - Leaflet, React-Leaflet
 - NumPy, Pandas, Scikit-learn
-- GeoPy, Nominatim
 
 ---
 
@@ -885,9 +894,9 @@ Para preguntas o issues:
 
 ## 🙏 Agradecimientos
 
-- **OpenStreetMap** - Datos de mapas y geocodificación
-- **Google Maps Platform** - Routes API
-- **AWS** - Infraestructura cloud
+- **Google Maps Platform** - Geocoding API y Routes API
+- **AWS** - Infraestructura cloud (Lambda, S3, DynamoDB)
+- **OpenStreetMap** - Datos de mapas base (Leaflet)
 - **Vercel** - Hosting y serverless functions
 - **Comunidad Open Source** - Librerías y frameworks
 

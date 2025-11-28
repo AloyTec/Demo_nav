@@ -29,11 +29,12 @@ Aplicación web full-stack diseñada para optimizar rutas de transporte de condu
 - **react-beautiful-dnd** para drag & drop
 
 ### Backend
-- **Python 3.9+** + **Flask**
+- **AWS Lambda** (Python 3.11+) - Serverless compute
 - **Scikit-learn** para clustering K-Means
-- **Geopy** para geocodificación
+- **Google Maps API** para geocodificación y rutas
 - **Pandas** para procesamiento de datos
 - **NumPy** para cálculos numéricos
+- **DynamoDB** para tracking de uso
 
 ## 🚀 Instalación y Configuración
 
@@ -66,18 +67,20 @@ npm install
 
 ### 4. Iniciar la Aplicación
 
-**Terminal 1 - Backend:**
+**Configurar variables de entorno:**
 ```bash
-cd backend
-python app.py
+# Crear archivo .env en la raíz
+VITE_API_URL=https://your-lambda-url.lambda-url.us-east-1.on.aws
 ```
-El backend estará disponible en `http://localhost:8000`
 
-**Terminal 2 - Frontend:**
+**Iniciar Frontend:**
 ```bash
 npm run dev
 ```
 El frontend estará disponible en `http://localhost:3000`
+
+**Backend (AWS Lambda):**
+El backend ya está desplegado en AWS Lambda. Ver `DEPLOY_INSTRUCTIONS.md` para actualizar.
 
 ### 5. Abrir en el Navegador
 
@@ -123,16 +126,15 @@ Agrupa conductores geográficamente según:
 Optimiza el orden de recogida dentro de cada ruta para minimizar distancia total.
 
 ### Geocodificación
-Convierte direcciones de texto a coordenadas GPS usando Nominatim (OpenStreetMap).
+Convierte direcciones de texto a coordenadas GPS usando Google Maps Geocoding API (paralelo con 10 workers).
 
 ## 📁 Estructura del Proyecto
 
 ```
 route-optimizer-demo/
-├── backend/
-│   ├── app.py                 # API Flask principal
-│   ├── requirements.txt       # Dependencias Python
-│   └── app_simple.py         # Versión sin debug
+├── lambda_function_updated.py # AWS Lambda Handler + Algoritmos IA
+├── api/
+│   └── get-street-route.js    # Vercel Function (Google Routes API)
 ├── src/
 │   ├── components/
 │   │   ├── Dashboard.jsx      # Vista principal
@@ -210,9 +212,10 @@ Health check del servidor.
 | Frontend | React, Vite, Tailwind CSS |
 | Mapas | Leaflet, OpenStreetMap |
 | Gráficos | Recharts |
-| Backend | Flask, Python |
-| ML/IA | Scikit-learn (K-Means) |
-| Geocoding | Geopy, Nominatim |
+| Backend | AWS Lambda (Python 3.11) |
+| ML/IA | Scikit-learn (K-Means, TSP, 2-opt) |
+| APIs | Google Maps (Geocoding & Routes API) |
+| Cloud | AWS (Lambda, S3, DynamoDB), Vercel |
 | Data Processing | Pandas, NumPy |
 
 ## 📄 Licencia
