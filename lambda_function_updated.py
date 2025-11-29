@@ -842,7 +842,19 @@ def geocode_driver_parallel(driver_data):
         driver['coordinates'] = geocode_address(driver['address'])
 
         # Check if geocoding failed (returned Santiago center fallback)
-        if abs(driver['coordinates']['lat'] - (-33.4489)) < 0.15 and abs(driver['coordinates']['lng'] - (-70.6693)) < 0.15:
+        import math
+        def haversine_distance(lat1, lon1, lat2, lon2):
+            R = 6371  # Radio de la Tierra en km
+            phi1, phi2 = math.radians(lat1), math.radians(lat2)
+            dphi = math.radians(lat2 - lat1)
+            dlambda = math.radians(lon2 - lon1)
+            a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
+            c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+            return R * c
+
+        center_lat, center_lng = -33.4489, -70.6693
+        dist_to_center = haversine_distance(driver['coordinates']['lat'], driver['coordinates']['lng'], center_lat, center_lng)
+        if dist_to_center < 2:
             error_info = {
                 'driver_index': idx + 1,
                 'driver_name': driver.get('name', 'Unknown'),
