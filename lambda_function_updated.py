@@ -830,7 +830,8 @@ def optimize_route_tsp(drivers):
             - needs_manual_review: True if optimization failed and requires manual intervention
     """
     # --- Agrupamiento por horario de recogida y cercanía ---
-    grupos = group_drivers_by_time_and_location(drivers, max_group_size=VAN_CAPACITY, time_window=120, max_distance_km=20)
+    # Ajuste de tolerancia: reducir ventana de tiempo y distancia máxima para evitar rutas largas y dispersas
+    grupos = group_drivers_by_time_and_location(drivers, max_group_size=VAN_CAPACITY, time_window=45, max_distance_km=8)
 
     # --- Forzar límite de 10 vans ---
     MAX_VANS = 10
