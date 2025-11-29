@@ -570,6 +570,44 @@ def create_distance_matrix(drivers):
     return time_matrix, distance_matrix
 
 
+def get_real_distance_time_matrix(drivers):
+    """
+    Calcula la matriz real de tiempos y distancias entre todos los conductores usando la API de Google Maps Distance Matrix.
+    Si la API falla, usa distancia geodésica y tiempo estimado como fallback.
+
+    Args:
+        drivers: Lista de conductores con campo 'coordinates'
+
+    Returns:
+        time_matrix: Matriz de tiempos en segundos (int)
+        distance_matrix: Matriz de distancias en metros (int)
+    """
+    num_locations = len(drivers)
+    time_matrix = [[0 for _ in range(num_locations)] for _ in range(num_locations)]
+    distance_matrix = [[0 for _ in range(num_locations)] for _ in range(num_locations)]
+
+    for i in range(num_locations):
+        for j in range(num_locations):
+            if i == j:
+                time_matrix[i][j] = 0
+                distance_matrix[i][j] = 0
+            else:
+                origin = drivers[i]['coordinates']
+                destination = drivers[j]['coordinates']
+                route_info = get_route_distance_and_time(origin, destination)
+                if route_info:
+                    distance_km = route_info['distance_km']
+                    duration_minutes = route_info['duration_minutes']
+                else:
+                    distance_km = calculate_distance(origin, destination)
+                    duration_minutes = estimate_travel_time(distance_km)
+                # Sumar tiempo de parada (5 min) por pasajero
+                stop_time = 5
+                total_time_minutes = duration_minutes + stop_time
+                time_matrix[i][j] = int(total_time_minutes * 60)  # segundos
+                distance_matrix[i][j] = int(distance_km * 1000)   # metros
+    return time_matrix, distance_matrix
+
 def optimize_route_ortools(drivers, time_limit_seconds=30):
     """
     Optimize route using Google OR-Tools VRP solver with real distance/time matrix and time windows.
