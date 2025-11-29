@@ -786,11 +786,12 @@ def optimize_route_tsp_legacy(drivers):
         return drivers, False
 
 
-def group_drivers_by_time_and_location(drivers, max_group_size=10, time_window=30):
+def group_drivers_by_time_and_location(drivers, max_group_size=10, time_window=60, max_distance_km=10):
     """
     Agrupa conductores por horario de recogida y cercanía geográfica.
     - max_group_size: máximo de conductores por grupo (van)
     - time_window: minutos de tolerancia entre pickups para agrupar
+    - max_distance_km: distancia máxima permitida entre conductores del grupo
     """
     # Ordenar por pickup_time_latest_minutes
     drivers_sorted = sorted(drivers, key=lambda d: d['pickup_time_latest_minutes'])
@@ -803,9 +804,9 @@ def group_drivers_by_time_and_location(drivers, max_group_size=10, time_window=3
         # Verificar si el conductor cabe en el grupo actual por horario
         tiempo_diferencia = abs(conductor['pickup_time_latest_minutes'] - grupo_actual[0]['pickup_time_latest_minutes'])
         if len(grupo_actual) < max_group_size and tiempo_diferencia <= time_window:
-            # Verificar cercanía geográfica (dentro de 5 km del primero del grupo)
+            # Verificar cercanía geográfica (dentro de max_distance_km del primero del grupo)
             distancia = calculate_distance(conductor['coordinates'], grupo_actual[0]['coordinates'])
-            if distancia <= 5:
+            if distancia <= max_distance_km:
                 grupo_actual.append(conductor)
             else:
                 grupos.append(grupo_actual)
@@ -829,7 +830,7 @@ def optimize_route_tsp(drivers):
             - needs_manual_review: True if optimization failed and requires manual intervention
     """
     # --- Agrupamiento por horario de recogida y cercanía ---
-    grupos = group_drivers_by_time_and_location(drivers, max_group_size=VAN_CAPACITY, time_window=30)
+    grupos = group_drivers_by_time_and_location(drivers, max_group_size=VAN_CAPACITY, time_window=60, max_distance_km=10)
 
     rutas = []
     needs_manual_review = False
