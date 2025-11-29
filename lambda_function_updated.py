@@ -572,33 +572,18 @@ def create_distance_matrix(drivers):
 
 def optimize_route_ortools(drivers, time_limit_seconds=30):
     """
-    Optimize route using Google OR-Tools VRP solver
-
-    Args:
-        drivers: List of drivers with coordinates
-        time_limit_seconds: Maximum time for solver (default 30s)
-
-    Returns:
-        tuple: (route, needs_manual_review) where:
-            - route: Optimized route (list of drivers in optimal order)
-            - needs_manual_review: True if optimization failed and requires manual intervention
+    Optimize route using Google OR-Tools VRP solver with real distance/time matrix and time windows.
     """
-    if len(drivers) <= 1:
-        return drivers, False
-
     try:
-        # Crear matriz de tiempos y distancias
-        time_matrix, distance_matrix = create_distance_matrix(drivers)
+        # Usar matriz real de tiempos/distancias entre todos los puntos
+        time_matrix, distance_matrix = get_real_distance_time_matrix(drivers)
         num_locations = len(drivers)
 
         # Encontrar el conductor más lejano al terminal
         idx_max_dist = max(range(num_locations), key=lambda i: drivers[i]['distance_to_terminal_km'])
         print(f"[COPILOT LOG] Nodo inicial fijado: {drivers[idx_max_dist].get('name','?')} | Dirección: {drivers[idx_max_dist].get('address','?')} | Distancia al terminal: {drivers[idx_max_dist].get('distance_to_terminal_km','?')} km")
 
-        # Crear el routing index manager con nodo inicial = más lejano
         manager = pywrapcp.RoutingIndexManager(num_locations, 1, idx_max_dist)
-
-        # Crear Routing Model
         routing = pywrapcp.RoutingModel(manager)
 
         # Callback de tiempo
@@ -617,15 +602,13 @@ def optimize_route_ortools(drivers, time_limit_seconds=30):
 
         distance_callback_index = routing.RegisterTransitCallback(distance_callback)
 
-        # Multiobjetivo: minimizar tiempo y distancia
-        # Usar tiempo como costo principal
         routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
 
         # Añadir dimensión de distancia para reporte y restricciones
         routing.AddDimension(
             distance_callback_index,
-            0,  # no slack
-            100000,  # distancia máxima permitida (ajustable)
+            0,
+            100000,
             True,
             'Distance'
         )
@@ -647,13 +630,23 @@ def optimize_route_ortools(drivers, time_limit_seconds=30):
         # Restricción de tiempo máximo de viaje por pasajero (1h30min = 5400 seg)
         routing.AddDimension(
             transit_callback_index,
-            0,  # no slack
-            5400,  # tiempo máximo permitido por pasajero (segundos)
+            0,
+            5400,
             True,
             'Time'
         )
 
-        # Heurística de solución inicial
+        # Ventanas de tiempo como restricción directa
+        time_windows = []
+        for drv in drivers:
+            earliest = 0
+            latest = int(drv['pickup_time_latest_minutes'] * 60)
+            time_windows.append((earliest, latest))
+        time_dimension = routing.GetDimensionOrDie('Time')
+        for location_idx, (earliest, latest) in enumerate(time_windows):
+            index = manager.NodeToIndex(location_idx)
+            time_dimension.CumulVar(index).SetRange(earliest, latest)
+
         search_parameters = pywrapcp.DefaultRoutingSearchParameters()
         search_parameters.first_solution_strategy = (
             routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
@@ -664,36 +657,31 @@ def optimize_route_ortools(drivers, time_limit_seconds=30):
         search_parameters.time_limit.seconds = time_limit_seconds
         search_parameters.log_search = False
 
-        # Solve the problem
         solution = routing.SolveWithParameters(search_parameters)
 
         if solution:
-            # Extract route from solution
             route = []
             index = routing.Start(0)
-
             while not routing.IsEnd(index):
                 node_index = manager.IndexToNode(index)
                 route.append(drivers[node_index])
                 index = solution.Value(routing.NextVar(index))
 
-            # Print optimization stats
-            total_distance = solution.ObjectiveValue() / 1000.0  # Convert back to km
+            total_distance = solution.ObjectiveValue() / 1000.0
             print(f"  ✓ OR-Tools: Optimized route with {len(route)} stops, total distance: {total_distance:.2f} km")
             print("  [COPILOT LOG] Orden de recogida y horarios en ruta optimizada:")
             for i, drv in enumerate(route):
                 print(f"    {i+1}. {drv.get('name','?')} | Dirección: {drv.get('address','?')} | Recogida: {drv.get('pickup_time_latest','?')} | Presentación: {drv.get('presentation_time','?')} | Distancia al terminal: {drv.get('distance_to_terminal_km','?')} km")
-
             return route, False
         else:
             print("  ⚠ OR-Tools: No solution found, falling back to 2-opt TSP")
             route, success = optimize_route_tsp_legacy(drivers)
-            return route, not success  # If legacy TSP failed, needs manual review
+            return route, not success
 
     except Exception as e:
         print(f"  ⚠ OR-Tools optimization failed: {e}, falling back to 2-opt TSP")
         route, success = optimize_route_tsp_legacy(drivers)
-        return route, not success  # If legacy TSP failed, needs manual review
+        return route, not success
 
 
 def optimize_route_tsp_legacy(drivers):
