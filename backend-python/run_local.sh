@@ -22,7 +22,7 @@ echo ""
 # Check if virtual environment exists
 if [ ! -d ".venv" ]; then
     echo -e "${YELLOW}Virtual environment not found. Creating...${NC}"
-    uv venv
+    uv venv --python 3.12
     echo -e "${GREEN}✓ Virtual environment created${NC}"
     echo ""
 fi

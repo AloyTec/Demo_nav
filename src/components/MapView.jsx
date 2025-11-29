@@ -25,10 +25,7 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
   const [loadingRoutes, setLoadingRoutes] = useState(false);
   const [hoveredRoute, setHoveredRoute] = useState(null); // Track which route is being hovered
   const [selectedRoute, setSelectedRoute] = useState(null); // Track which route is locked (clicked)
-MapView.propTypes = {
-  data: PropTypes.object.isRequired,
-  mobileMenuOpen: PropTypes.bool
-};
+  const [routeErrors, setRouteErrors] = useState({}); // Track route fetching errors
 
   useEffect(() => {
     console.log('MapView data:', data); // DEBUG
@@ -162,7 +159,7 @@ MapView.propTypes = {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {data.vans.map((van, vanIndex) => 
+        {data.vans.map((van, vanIndex) => {
           const isBus = van.is_bus === true;
           const color = isBus ? BUS_COLOR : COLORS[vanIndex % COLORS.length];
 
@@ -198,14 +195,15 @@ MapView.propTypes = {
                 if (!driver.coordinates) return null;
 
                 const isFirst = driverIndex === 0;
-                // El último pasajero solo muestra el número
+                const isLast = driverIndex === van.drivers.length - 1;
+
                 const customIcon = L.divIcon({
                   className: 'custom-marker',
                   html: `
                     <div style="
-                      background: ${isFirst ? '#22C55E' : color};
-                      width: ${isFirst ? '36px' : '30px'};
-                      height: ${isFirst ? '36px' : '30px'};
+                      background: ${isFirst ? '#22C55E' : isLast ? '#EF4444' : color};
+                      width: ${isFirst || isLast ? '36px' : '30px'};
+                      height: ${isFirst || isLast ? '36px' : '30px'};
                       border-radius: 50%;
                       border: 3px solid white;
                       box-shadow: 0 3px 10px rgba(0,0,0,0.4);
@@ -214,15 +212,55 @@ MapView.propTypes = {
                       justify-content: center;
                       color: white;
                       font-weight: bold;
-                      font-size: ${isFirst ? '16px' : '13px'};
+                      font-size: ${isFirst || isLast ? '16px' : '13px'};
                       transition: all 0.3s ease;
                     ">
-                      ${driverIndex + 1}
+                      ${isFirst ? '🏁' : isLast ? '🏁' : driverIndex + 1}
                     </div>
                   `,
-                  iconSize: [isFirst ? 36 : 30, isFirst ? 36 : 30],
-                  iconAnchor: [isFirst ? 18 : 15, isFirst ? 18 : 15],
+                  iconSize: [isFirst || isLast ? 36 : 30, isFirst || isLast ? 36 : 30],
+                  iconAnchor: [isFirst || isLast ? 18 : 15, isFirst || isLast ? 18 : 15],
                 });
+
+                return (
+                  <Marker
+                    key={`${vanIndex}-${driver.code || driverIndex}`}
+                    position={[driver.coordinates.lat, driver.coordinates.lng]}
+                    icon={customIcon}
+                  >
+                    <Popup>
+                      <div className="p-2 min-w-[200px]">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="font-bold text-lg">{driver.name}</h3>
+                          <span
+                            className="text-xs font-bold px-2 py-1 rounded"
+                            style={{ backgroundColor: color, color: 'white' }}
+                          >
+                            {van.name}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-1">
+                          📍 {driver.address}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          🚩 Terminal: {driver.terminal}
+                        </p>
+                        <p className="text-xs font-bold text-gray-700">
+                          🕐 Hora de recojo: {driver.pickup_time_sequential ? driver.pickup_time_sequential : driver.pickup_time_latest}
+                          🚌 Hora de llegada al terminal: {driver.arrival_time_terminal ? driver.arrival_time_terminal : ''}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          ⏰ Hora de presentación: {driver.time}
+                        </p>
+                        <div className="mt-2 pt-2 border-t border-gray-200">
+                          <p className="text-xs font-semibold text-gray-700">
+                            {isFirst ? '🏁 Inicio de ruta' : isLast ? '🏁 Fin de ruta' : `Parada #${driverIndex + 1}`}
+                          </p>
+                        </div>
+                      </div>
+                    </Popup>
+                  </Marker>
+                );
               })}
               {/* Marcador extra para el destino final (bus/terminal) */}
               {shouldShowRoute && !isBus && van.route && van.route.length > van.drivers.length && (() => {
@@ -267,9 +305,6 @@ MapView.propTypes = {
                   </Marker>
                 );
               })()}
-
-                // ...existing code...
-              
 
               {/* Bus markers - show bus icon for bus routes */}
               {shouldShowRoute && isBus && van.route && van.route.map((point, pointIndex) => {
@@ -457,6 +492,11 @@ MapView.propTypes = {
       </div>
     </div>
   );
+};
+
+MapView.propTypes = {
+  data: PropTypes.object.isRequired,
+  mobileMenuOpen: PropTypes.bool
 };
 
 export default MapView;
