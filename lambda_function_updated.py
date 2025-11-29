@@ -1432,33 +1432,36 @@ def handle_optimize(event):
                         num_vans = max(1, int(np.ceil(len(terminal_drivers) / VAN_CAPACITY)))
                         print(f"[COPILOT LOG] Dynamic van calculation: {num_vans} vans for {len(terminal_drivers)} passengers (capacity {VAN_CAPACITY}) - PATCHED BY GITHUB COPILOT")
 
-                    # Cluster drivers using K-means
-                    print(f"Clustering into {num_vans} vans...")
-                    coordinates = np.array([[d['coordinates']['lat'], d['coordinates']['lng']] for d in terminal_drivers])
-                    kmeans = KMeans(n_clusters=num_vans, random_state=42, n_init=10)
-                    labels = kmeans.fit_predict(coordinates)
-
-                    # Group drivers by cluster
-                    clusters = [[] for _ in range(num_vans)]
-                    for driver, label in zip(terminal_drivers, labels):
-                        clusters[label].append(driver)
-
-                    # Balance load
-                    clusters = balance_load(clusters)
-
-                    # Optimize route for each van
-                    for i, cluster in enumerate(clusters):
-                        if not cluster:
+                    # Agrupamiento por ventanas de tiempo (igual que bus mode)
+                    drivers_sorted = sorted(terminal_drivers, key=lambda d: d['presentation_time_minutes'])
+                    grupos = []
+                    grupo_actual = []
+                    for conductor in drivers_sorted:
+                        if not grupo_actual:
+                            grupo_actual.append(conductor)
                             continue
+                        tiempo_trayecto_ultimo = conductor['travel_time_minutes']
+                        presentacion_mas_temprano = min([c['presentation_time_minutes'] for c in grupo_actual])
+                        limite_recogida_ultimo = presentacion_mas_temprano - tiempo_trayecto_ultimo
+                        if conductor['pickup_time_latest_minutes'] > limite_recogida_ultimo:
+                            grupos.append(grupo_actual)
+                            grupo_actual = [conductor]
+                        else:
+                            grupo_actual.append(conductor)
+                    if grupo_actual:
+                        grupos.append(grupo_actual)
 
-                        optimized_route, needs_review = optimize_route_tsp(cluster)
+                    # Optimizar cada grupo como una van
+                    for i, grupo in enumerate(grupos):
+                        if not grupo:
+                            continue
+                        optimized_route, needs_review = optimize_route_tsp(grupo)
                         if needs_review:
                             routes_need_manual_review = True
                             print(f"  ⚠ Van {total_vans + i + 1} requires manual review")
 
                         route_distance = 0
                         route_coordinates = []
-
                         for j in range(len(optimized_route)):
                             route_coordinates.append(optimized_route[j]['coordinates'])
                             if j > 0:
@@ -1466,9 +1469,7 @@ def handle_optimize(event):
                                     optimized_route[j-1]['coordinates'],
                                     optimized_route[j]['coordinates']
                                 )
-
                         total_distance += route_distance
-
                         all_vans.append({
                             'name': f'Van {total_vans + i + 1}',
                             'drivers': optimized_route,
@@ -1480,8 +1481,7 @@ def handle_optimize(event):
                             'is_van': True,
                             'needs_manual_review': needs_review
                         })
-
-                    total_vans += num_vans
+                    total_vans += len(grupos)
 
             # Calculate metrics
             manual_distance = total_distance * 1.12
