@@ -12,7 +12,6 @@ import urllib3
 from urllib.parse import quote
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from geopy.distance import geodesic
-from sklearn.cluster import KMeans
 import uuid
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
@@ -765,7 +764,43 @@ def optimize_route_tsp(drivers):
             - route: Optimized route (list of drivers in optimal order)
             - needs_manual_review: True if optimization failed and requires manual intervention
     """
-    return optimize_route_ortools(drivers)
+    # --- Agrupamiento automático por ventanas de tiempo ---
+    # Ordenar conductores por hora de presentación
+    drivers_sorted = sorted(drivers, key=lambda d: d['presentation_time_minutes'])
+    grupos = []
+    grupo_actual = []
+    for i, conductor in enumerate(drivers_sorted):
+        if not grupo_actual:
+            grupo_actual.append(conductor)
+            continue
+        # Calcular tiempo de trayecto desde el último pickup al terminal
+        tiempo_trayecto_ultimo = conductor['travel_time_minutes']
+        # Hora de presentación más temprana del grupo
+        presentacion_mas_temprano = min([c['presentation_time_minutes'] for c in grupo_actual])
+        # Límite de recogida del último
+        limite_recogida_ultimo = presentacion_mas_temprano - tiempo_trayecto_ultimo
+        # Si el pickup del conductor actual es mayor al límite, crear nuevo grupo
+        if conductor['pickup_time_latest_minutes'] > limite_recogida_ultimo:
+            grupos.append(grupo_actual)
+            grupo_actual = [conductor]
+        else:
+            grupo_actual.append(conductor)
+    if grupo_actual:
+        grupos.append(grupo_actual)
+
+    rutas = []
+    needs_manual_review = False
+    for grupo in grupos:
+        # Optimizar cada grupo por separado
+        ruta, review = optimize_route_ortools(grupo)
+        rutas.append((ruta, review))
+        if review:
+            needs_manual_review = True
+    # Unir rutas y marcar si alguna requiere revisión
+    ruta_final = []
+    for ruta, _ in rutas:
+        ruta_final.extend(ruta)
+    return ruta_final, needs_manual_review
 
 def balance_load(clusters):
     """Balance the number of drivers across vans"""
@@ -940,56 +975,49 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
     if num_vans == 1 and len(drivers) == 10:
         print("[COPILOT LOG] Confirmed: 1 van assigned for 10 employees. - PATCHED BY GITHUB COPILOT")
 
-    # Cluster drivers using K-means
-    print(f"[COPILOT LOG] Clustering {len(drivers)} drivers into {num_vans} vans using KMeans - PATCHED BY GITHUB COPILOT")
-    coordinates = np.array([[d['coordinates']['lat'], d['coordinates']['lng']] for d in drivers])
-    kmeans = KMeans(n_clusters=num_vans, random_state=42, n_init=10)
-    labels = kmeans.fit_predict(coordinates)
 
-    # Group drivers by cluster
-    clusters = [[] for _ in range(num_vans)]
-    for driver, label in zip(drivers, labels):
-        clusters[label].append(driver)
-
-    # Balance load
-    clusters = balance_load(clusters)
-    print(f"[COPILOT LOG] Load balanced across clusters: {[len(c) for c in clusters]} drivers per van - PATCHED BY GITHUB COPILOT")
-
-    # Optimize routes for each van (split into 2 groups)
-    vans = []
-    bus_passengers = []  # Accumulate all Group 1 passengers for the bus
-    total_distance = 0
-    needs_manual_review = False  # Track if any optimization failed
-
-    for van_idx, cluster in enumerate(clusters):
-        print(f"[COPILOT LOG] Van {van_idx + 1}: {len(cluster)} drivers assigned - PATCHED BY GITHUB COPILOT")
-        if not cluster:
+    # --- Agrupamiento por ventanas de tiempo ---
+    # Usar la misma lógica que optimize_route_tsp para formar grupos compatibles por tiempo
+    drivers_sorted = sorted(drivers, key=lambda d: d['presentation_time_minutes'])
+    grupos = []
+    grupo_actual = []
+    for i, conductor in enumerate(drivers_sorted):
+        if not grupo_actual:
+            grupo_actual.append(conductor)
             continue
+        tiempo_trayecto_ultimo = conductor['travel_time_minutes']
+        presentacion_mas_temprano = min([c['presentation_time_minutes'] for c in grupo_actual])
+        limite_recogida_ultimo = presentacion_mas_temprano - tiempo_trayecto_ultimo
+        if conductor['pickup_time_latest_minutes'] > limite_recogida_ultimo:
+            grupos.append(grupo_actual)
+            grupo_actual = [conductor]
+        else:
+            grupo_actual.append(conductor)
+    if grupo_actual:
+        grupos.append(grupo_actual)
 
-        # Split cluster into 2 groups (max 5 per group for capacity of 10)
-        mid_point = len(cluster) // 2
-        group_1 = cluster[:mid_point]  # Go to bus
-        group_2 = cluster[mid_point:]  # Go directly to terminal
+    vans = []
+    bus_passengers = []
+    total_distance = 0
+    needs_manual_review = False
+
+    for van_idx, grupo in enumerate(grupos):
+        if not grupo:
+            continue
+        # Split group into 2 (bus mode logic)
+        mid_point = len(grupo) // 2
+        group_1 = grupo[:mid_point]
+        group_2 = grupo[mid_point:]
 
         # GROUP 1: Optimize route home → bus stop
         if group_1:
-            print(f"[COPILOT LOG] Van {van_idx + 1} - Grupo 1: optimizing route to bus stop for {len(group_1)} drivers - PATCHED BY GITHUB COPILOT")
             route_1, needs_review_1 = optimize_route_tsp(group_1)
-            if needs_review_1:
-                needs_manual_review = True
-                print(f"[COPILOT LOG] Van {van_idx + 1} - Grupo 1 requires manual review - PATCHED BY GITHUB COPILOT")
-
             route_1_coords = [d['coordinates'] for d in route_1]
-            route_1_coords.append(BUS_STOP_MAIPU)  # End at bus stop
-
-            # Calculate distance for group 1 route
+            route_1_coords.append(BUS_STOP_MAIPU)
             distance_1 = 0
             for j in range(len(route_1_coords) - 1):
                 distance_1 += calculate_distance(route_1_coords[j], route_1_coords[j + 1])
-
-            print(f"[COPILOT LOG] Van {van_idx + 1} - Grupo 1 route distance: {distance_1:.2f} km - PATCHED BY GITHUB COPILOT")
             total_distance += distance_1
-
             vans.append({
                 'name': f'Van {van_idx + 1} - Grupo 1',
                 'drivers': route_1,
@@ -1002,28 +1030,19 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
                 'is_van': True,
                 'needs_manual_review': needs_review_1
             })
-
             bus_passengers.extend(group_1)
+            if needs_review_1:
+                needs_manual_review = True
 
         # GROUP 2: Optimize route home → terminal direct
         if group_2:
-            print(f"[COPILOT LOG] Van {van_idx + 1} - Grupo 2: optimizing route to terminal for {len(group_2)} drivers - PATCHED BY GITHUB COPILOT")
             route_2, needs_review_2 = optimize_route_tsp(group_2)
-            if needs_review_2:
-                needs_manual_review = True
-                print(f"[COPILOT LOG] Van {van_idx + 1} - Grupo 2 requires manual review - PATCHED BY GITHUB COPILOT")
-
             route_2_coords = [d['coordinates'] for d in route_2]
-            route_2_coords.append(terminal_coord)  # End at terminal
-
-            # Calculate distance for group 2 route
+            route_2_coords.append(terminal_coord)
             distance_2 = 0
             for j in range(len(route_2_coords) - 1):
                 distance_2 += calculate_distance(route_2_coords[j], route_2_coords[j + 1])
-
-            print(f"[COPILOT LOG] Van {van_idx + 1} - Grupo 2 route distance: {distance_2:.2f} km - PATCHED BY GITHUB COPILOT")
             total_distance += distance_2
-
             vans.append({
                 'name': f'Van {van_idx + 1} - Grupo 2',
                 'drivers': route_2,
@@ -1036,31 +1055,24 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
                 'is_van': True,
                 'needs_manual_review': needs_review_2
             })
+            if needs_review_2:
+                needs_manual_review = True
 
     # Create BUS route (bus stop → terminal)
     if bus_passengers:
-        print(f"[COPILOT LOG] Bus de Acercamiento: {len(bus_passengers)} passengers assigned - PATCHED BY GITHUB COPILOT")
         bus_route = [BUS_STOP_MAIPU, terminal_coord]
-
-        # Get real road distance for bus route
         bus_route_info = get_route_distance_and_time(BUS_STOP_MAIPU, terminal_coord)
         if bus_route_info:
             bus_distance = bus_route_info['distance_km']
-            print(f"[COPILOT LOG] Bus route (real): {bus_distance} km - PATCHED BY GITHUB COPILOT")
         else:
             bus_distance = calculate_distance(BUS_STOP_MAIPU, terminal_coord)
-            print(f"[COPILOT LOG] Bus route (geodesic fallback): {bus_distance} km - PATCHED BY GITHUB COPILOT")
-
         total_distance += bus_distance
-
-        # Create driver list for bus with bus stop info
         bus_driver_list = []
         for passenger in bus_passengers:
             bus_driver_list.append({
                 **passenger,
                 'pickup_location': 'Bus Stop - Av. Departamental esq Av. Pedro Aguirre Cerda'
             })
-
         vans.append({
             'name': 'Bus de Acercamiento',
             'drivers': bus_driver_list,
