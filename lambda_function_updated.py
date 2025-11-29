@@ -832,6 +832,17 @@ def optimize_route_tsp(drivers):
     # --- Agrupamiento por horario de recogida y cercanía ---
     grupos = group_drivers_by_time_and_location(drivers, max_group_size=VAN_CAPACITY, time_window=120, max_distance_km=20)
 
+    # --- Forzar límite de 10 vans ---
+    MAX_VANS = 10
+    if len(grupos) > MAX_VANS:
+        # Combinar los grupos más pequeños hasta que queden 10
+        while len(grupos) > MAX_VANS:
+            # Ordenar por tamaño
+            grupos = sorted(grupos, key=len)
+            # Combinar los dos más pequeños
+            grupo1 = grupos.pop(0)
+            grupo2 = grupos.pop(0)
+            grupos.append(grupo1 + grupo2)
     rutas = []
     needs_manual_review = False
     for grupo in grupos:
