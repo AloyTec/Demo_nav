@@ -1063,6 +1063,18 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
     if grupo_actual:
         grupos.append(grupo_actual)
 
+    # --- Forzar límite de vans en bus mode ---
+    MAX_VANS = 10
+    # En bus mode, cada grupo genera 2 vans (grupo 1 y grupo 2)
+    # Por lo tanto, el número de grupos debe ser <= MAX_VANS // 2
+    max_groups = MAX_VANS // 2
+    if len(grupos) > max_groups:
+        while len(grupos) > max_groups:
+            grupos = sorted(grupos, key=len)
+            grupo1 = grupos.pop(0)
+            grupo2 = grupos.pop(0)
+            grupos.append(grupo1 + grupo2)
+
     vans = []
     bus_passengers = []
     total_distance = 0
@@ -1086,7 +1098,7 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
                 distance_1 += calculate_distance(route_1_coords[j], route_1_coords[j + 1])
             total_distance += distance_1
             vans.append({
-                'name': f'Van {van_idx + 1} - Grupo 1',
+                'name': f'Van {van_idx * 2 + 1} - Grupo 1',
                 'drivers': route_1,
                 'route': route_1_coords,
                 'totalDistance': distance_1,
@@ -1111,7 +1123,7 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
                 distance_2 += calculate_distance(route_2_coords[j], route_2_coords[j + 1])
             total_distance += distance_2
             vans.append({
-                'name': f'Van {van_idx + 1} - Grupo 2',
+                'name': f'Van {van_idx * 2 + 2} - Grupo 2',
                 'drivers': route_2,
                 'route': route_2_coords,
                 'totalDistance': distance_2,
