@@ -1416,9 +1416,9 @@ def handle_optimize(event):
                         num_vans = num_vans_config
                         print(f"Using user-configured number of vans: {num_vans}")
                     else:
-                        # Use DEFAULT_NUM_VANS (10 vans by default)
-                        num_vans = DEFAULT_NUM_VANS
-                        print(f"Using default fleet size: {num_vans} vans")
+                        # Always use dynamic van calculation
+                        num_vans = max(1, int(np.ceil(len(terminal_drivers) / VAN_CAPACITY)))
+                        print(f"[COPILOT LOG] Dynamic van calculation: {num_vans} vans for {len(terminal_drivers)} passengers (capacity {VAN_CAPACITY}) - PATCHED BY GITHUB COPILOT")
 
                     # Cluster drivers using K-means
                     print(f"Clustering into {num_vans} vans...")
@@ -1473,7 +1473,11 @@ def handle_optimize(event):
 
             # Calculate metrics
             manual_distance = total_distance * 1.12
-            distance_saved = ((manual_distance - total_distance) / manual_distance) * 100
+            if manual_distance != 0:
+                distance_saved = ((manual_distance - total_distance) / manual_distance) * 100
+            else:
+                distance_saved = 0
+                print("[COPILOT LOG] Division by zero error in distance_saved calculation. Manual distance is zero.")
 
             # Determine optimization method description
             if routes_need_manual_review:
