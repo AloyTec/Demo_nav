@@ -786,6 +786,37 @@ def optimize_route_tsp_legacy(drivers):
         return drivers, False
 
 
+def group_drivers_by_time_and_location(drivers, max_group_size=10, time_window=30):
+    """
+    Agrupa conductores por horario de recogida y cercanía geográfica.
+    - max_group_size: máximo de conductores por grupo (van)
+    - time_window: minutos de tolerancia entre pickups para agrupar
+    """
+    # Ordenar por pickup_time_latest_minutes
+    drivers_sorted = sorted(drivers, key=lambda d: d['pickup_time_latest_minutes'])
+    grupos = []
+    grupo_actual = []
+    for conductor in drivers_sorted:
+        if not grupo_actual:
+            grupo_actual.append(conductor)
+            continue
+        # Verificar si el conductor cabe en el grupo actual por horario
+        tiempo_diferencia = abs(conductor['pickup_time_latest_minutes'] - grupo_actual[0]['pickup_time_latest_minutes'])
+        if len(grupo_actual) < max_group_size and tiempo_diferencia <= time_window:
+            # Verificar cercanía geográfica (dentro de 5 km del primero del grupo)
+            distancia = calculate_distance(conductor['coordinates'], grupo_actual[0]['coordinates'])
+            if distancia <= 5:
+                grupo_actual.append(conductor)
+            else:
+                grupos.append(grupo_actual)
+                grupo_actual = [conductor]
+        else:
+            grupos.append(grupo_actual)
+            grupo_actual = [conductor]
+    if grupo_actual:
+        grupos.append(grupo_actual)
+    return grupos
+
 def optimize_route_tsp(drivers):
     """
     Optimize route using OR-Tools (preferred) with fallback to 2-opt TSP
@@ -797,29 +828,8 @@ def optimize_route_tsp(drivers):
             - route: Optimized route (list of drivers in optimal order)
             - needs_manual_review: True if optimization failed and requires manual intervention
     """
-    # --- Agrupamiento automático por ventanas de tiempo ---
-    # Ordenar conductores por hora de presentación
-    drivers_sorted = sorted(drivers, key=lambda d: d['presentation_time_minutes'])
-    grupos = []
-    grupo_actual = []
-    for i, conductor in enumerate(drivers_sorted):
-        if not grupo_actual:
-            grupo_actual.append(conductor)
-            continue
-        # Calcular tiempo de trayecto desde el último pickup al terminal
-        tiempo_trayecto_ultimo = conductor['travel_time_minutes']
-        # Hora de presentación más temprana del grupo
-        presentacion_mas_temprano = min([c['presentation_time_minutes'] for c in grupo_actual])
-        # Límite de recogida del último
-        limite_recogida_ultimo = presentacion_mas_temprano - tiempo_trayecto_ultimo
-        # Si el pickup del conductor actual es mayor al límite, crear nuevo grupo
-        if conductor['pickup_time_latest_minutes'] > limite_recogida_ultimo:
-            grupos.append(grupo_actual)
-            grupo_actual = [conductor]
-        else:
-            grupo_actual.append(conductor)
-    if grupo_actual:
-        grupos.append(grupo_actual)
+    # --- Agrupamiento por horario de recogida y cercanía ---
+    grupos = group_drivers_by_time_and_location(drivers, max_group_size=VAN_CAPACITY, time_window=30)
 
     rutas = []
     needs_manual_review = False
@@ -1011,8 +1021,8 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
         num_vans = num_vans_override
         print(f"Using configured number of vans: {num_vans}")
     else:
-        # Calcular número óptimo de vans según cantidad de pasajeros y capacidad
-        num_vans = max(1, int(np.ceil(len(drivers) / VAN_CAPACITY)))
+        # Calcular número óptimo de vans según cantidad de pasajeros y capacidad, pero máximo 10
+        num_vans = min(10, max(1, int(np.ceil(len(drivers) / VAN_CAPACITY))))
     print(f"[COPILOT LOG] Dynamic van calculation: {num_vans} vans for {len(drivers)} passengers (capacity {VAN_CAPACITY}) - PATCHED BY GITHUB COPILOT")
     print("[COPILOT LOG] Server validation: Dynamic van calculation logic is ACTIVE (GitHub Copilot)")
     # Validación de ejecución en servidor
