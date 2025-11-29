@@ -1325,8 +1325,8 @@ def handle_optimize(event):
             driver_data_list = [(i, driver, destination_terminal_config) for i, driver in enumerate(drivers)]
 
             # Use ThreadPoolExecutor for parallel geocoding
-            # Max 10 workers to avoid overwhelming the API
-            max_workers = min(10, len(drivers))
+            # Max 15 workers to avoid overwhelming the API
+            max_workers = min(15, len(drivers))
             print(f"Using {max_workers} parallel workers for geocoding")
 
             geocoding_errors = []  # Track errors for reporting
