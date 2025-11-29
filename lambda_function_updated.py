@@ -591,8 +591,12 @@ def optimize_route_ortools(drivers, time_limit_seconds=30):
         time_matrix, distance_matrix = create_distance_matrix(drivers)
         num_locations = len(drivers)
 
-        # Crear el routing index manager
-        manager = pywrapcp.RoutingIndexManager(num_locations, 1, 0)
+        # Encontrar el conductor más lejano al terminal
+        idx_max_dist = max(range(num_locations), key=lambda i: drivers[i]['distance_to_terminal_km'])
+        print(f"[COPILOT LOG] Nodo inicial fijado: {drivers[idx_max_dist].get('name','?')} | Dirección: {drivers[idx_max_dist].get('address','?')} | Distancia al terminal: {drivers[idx_max_dist].get('distance_to_terminal_km','?')} km")
+
+        # Crear el routing index manager con nodo inicial = más lejano
+        manager = pywrapcp.RoutingIndexManager(num_locations, 1, idx_max_dist)
 
         # Crear Routing Model
         routing = pywrapcp.RoutingModel(manager)
@@ -676,6 +680,9 @@ def optimize_route_ortools(drivers, time_limit_seconds=30):
             # Print optimization stats
             total_distance = solution.ObjectiveValue() / 1000.0  # Convert back to km
             print(f"  ✓ OR-Tools: Optimized route with {len(route)} stops, total distance: {total_distance:.2f} km")
+            print("  [COPILOT LOG] Orden de recogida y horarios en ruta optimizada:")
+            for i, drv in enumerate(route):
+                print(f"    {i+1}. {drv.get('name','?')} | Dirección: {drv.get('address','?')} | Recogida: {drv.get('pickup_time_latest','?')} | Presentación: {drv.get('presentation_time','?')} | Distancia al terminal: {drv.get('distance_to_terminal_km','?')} km")
 
             return route, False
         else:
