@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import PropTypes from 'prop-types';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -22,9 +23,12 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
   const [center, setCenter] = useState([-33.4489, -70.6693]); // Santiago de Chile default
   const [streetRoutes, setStreetRoutes] = useState({}); // Rutas por calles desde Google Maps
   const [loadingRoutes, setLoadingRoutes] = useState(false);
-  const [routeErrors, setRouteErrors] = useState({});
   const [hoveredRoute, setHoveredRoute] = useState(null); // Track which route is being hovered
   const [selectedRoute, setSelectedRoute] = useState(null); // Track which route is locked (clicked)
+MapView.propTypes = {
+  data: PropTypes.object.isRequired,
+  mobileMenuOpen: PropTypes.bool
+};
 
   useEffect(() => {
     console.log('MapView data:', data); // DEBUG
@@ -158,7 +162,7 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {data.vans.map((van, vanIndex) => {
+        {data.vans.map((van, vanIndex) => 
           const isBus = van.is_bus === true;
           const color = isBus ? BUS_COLOR : COLORS[vanIndex % COLORS.length];
 
@@ -264,62 +268,8 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
                 );
               })()}
 
-                return (
-                  <Marker
-                    key={`${vanIndex}-${driver.code || driverIndex}`}
-                    position={[driver.coordinates.lat, driver.coordinates.lng]}
-                    icon={customIcon}
-                  >
-                    <Popup>
-                      <div className="p-2 min-w-[200px]">
-                        {isBusStop && van.drivers.length > 0 && (
-                          <p className="text-xs text-gray-700 mb-1">
-                            🕐 Salida bus: {van.drivers[0].pickup_time_sequential ? van.drivers[0].pickup_time_sequential : ''}
-                          </p>
-                        )}
-                        {!isBusStop && van.drivers.length > 0 && (
-                          <p className="text-xs text-gray-700 mb-1">
-                            🕐 Llegada terminal: {van.drivers[van.drivers.length-1].arrival_time_terminal ? van.drivers[van.drivers.length-1].arrival_time_terminal : ''}
-                          </p>
-                        )}
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="font-bold text-lg">{driver.name}</h3>
-                          <span 
-                            className="text-xs font-bold px-2 py-1 rounded"
-                            style={{ backgroundColor: color, color: 'white' }}
-                          >
-                            {van.name}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-600 mb-1">
-                          📍 {driver.address}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          🚩 Terminal: {driver.terminal}
-                        </p>
-                        <p className="text-xs font-bold text-gray-700">
-                          🕐 Hora de recojo: {driver.pickup_time_sequential ? driver.pickup_time_sequential : driver.pickup_time_latest}
-                          🚌 Hora de llegada al terminal: {driver.arrival_time_terminal ? driver.arrival_time_terminal : ''}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          ⏰ Hora de presentación: {driver.time}
-                        </p>
-                        <div className="mt-2 pt-2 border-t border-gray-200">
-                          <p className="text-xs font-semibold text-gray-700">
-                            {isFirst ? '🏁 Inicio de ruta' : isLast ? '🏁 Fin de ruta' : `Parada #${driverIndex + 1}`}
-                          </p>
-                        </div>
-                      </div>
-                    </Popup>
-                    <Tooltip direction="top" offset={[0, -15]} opacity={0.95}>
-                      <div className="text-center">
-                        <div className="font-bold">{driver.name}</div>
-                        <div className="text-xs">{isFirst ? 'Inicio' : isLast ? 'Fin' : `Parada ${driverIndex + 1}`}</div>
-                      </div>
-                    </Tooltip>
-                  </Marker>
-                );
-              })}
+                // ...existing code...
+              
 
               {/* Bus markers - show bus icon for bus routes */}
               {shouldShowRoute && isBus && van.route && van.route.map((point, pointIndex) => {
