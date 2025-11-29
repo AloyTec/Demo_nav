@@ -921,7 +921,9 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
             - total_distance: Total distance in km
             - needs_manual_review: True if any route optimization failed
     """
-    print(f"Using BUS MODE for {len(drivers)} drivers to {terminal}")
+    print(f"[COPILOT LOG] BUS MODE activated for {len(drivers)} drivers to {terminal} - PATCHED BY GITHUB COPILOT")
+    if len(drivers) == 10:
+        print("[COPILOT LOG] Special case: 10 employees detected. Expecting 1 van (capacity 10). - PATCHED BY GITHUB COPILOT")
 
     # Determine number of vans needed
     if num_vans_override is not None:
@@ -931,14 +933,15 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
     else:
         # Calcular número óptimo de vans según cantidad de pasajeros y capacidad
         num_vans = max(1, int(np.ceil(len(drivers) / VAN_CAPACITY)))
-        print(f"[DYNAMIC VAN CALC] Using dynamic fleet size: {num_vans} vans (for {len(drivers)} passengers, capacity {VAN_CAPACITY})")
-        # Validación de ejecución en servidor
-        print("[SERVER VALIDATION] Dynamic van calculation is active on this server.")
+    print(f"[COPILOT LOG] Dynamic van calculation: {num_vans} vans for {len(drivers)} passengers (capacity {VAN_CAPACITY}) - PATCHED BY GITHUB COPILOT")
+    print("[COPILOT LOG] Server validation: Dynamic van calculation logic is ACTIVE (GitHub Copilot)")
     # Validación de ejecución en servidor
     print("[SERVER VALIDATION] Dynamic van calculation is active on this server.")
+    if num_vans == 1 and len(drivers) == 10:
+        print("[COPILOT LOG] Confirmed: 1 van assigned for 10 employees. - PATCHED BY GITHUB COPILOT")
 
     # Cluster drivers using K-means
-    print(f"Clustering into {num_vans} vans...")
+    print(f"[COPILOT LOG] Clustering {len(drivers)} drivers into {num_vans} vans using KMeans - PATCHED BY GITHUB COPILOT")
     coordinates = np.array([[d['coordinates']['lat'], d['coordinates']['lng']] for d in drivers])
     kmeans = KMeans(n_clusters=num_vans, random_state=42, n_init=10)
     labels = kmeans.fit_predict(coordinates)
@@ -950,6 +953,7 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
 
     # Balance load
     clusters = balance_load(clusters)
+    print(f"[COPILOT LOG] Load balanced across clusters: {[len(c) for c in clusters]} drivers per van - PATCHED BY GITHUB COPILOT")
 
     # Optimize routes for each van (split into 2 groups)
     vans = []
@@ -958,6 +962,7 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
     needs_manual_review = False  # Track if any optimization failed
 
     for van_idx, cluster in enumerate(clusters):
+        print(f"[COPILOT LOG] Van {van_idx + 1}: {len(cluster)} drivers assigned - PATCHED BY GITHUB COPILOT")
         if not cluster:
             continue
 
@@ -968,10 +973,11 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
 
         # GROUP 1: Optimize route home → bus stop
         if group_1:
+            print(f"[COPILOT LOG] Van {van_idx + 1} - Grupo 1: optimizing route to bus stop for {len(group_1)} drivers - PATCHED BY GITHUB COPILOT")
             route_1, needs_review_1 = optimize_route_tsp(group_1)
             if needs_review_1:
                 needs_manual_review = True
-                print(f"  ⚠ Van {van_idx + 1} - Grupo 1 requires manual review")
+                print(f"[COPILOT LOG] Van {van_idx + 1} - Grupo 1 requires manual review - PATCHED BY GITHUB COPILOT")
 
             route_1_coords = [d['coordinates'] for d in route_1]
             route_1_coords.append(BUS_STOP_MAIPU)  # End at bus stop
@@ -981,6 +987,7 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
             for j in range(len(route_1_coords) - 1):
                 distance_1 += calculate_distance(route_1_coords[j], route_1_coords[j + 1])
 
+            print(f"[COPILOT LOG] Van {van_idx + 1} - Grupo 1 route distance: {distance_1:.2f} km - PATCHED BY GITHUB COPILOT")
             total_distance += distance_1
 
             vans.append({
@@ -1000,10 +1007,11 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
 
         # GROUP 2: Optimize route home → terminal direct
         if group_2:
+            print(f"[COPILOT LOG] Van {van_idx + 1} - Grupo 2: optimizing route to terminal for {len(group_2)} drivers - PATCHED BY GITHUB COPILOT")
             route_2, needs_review_2 = optimize_route_tsp(group_2)
             if needs_review_2:
                 needs_manual_review = True
-                print(f"  ⚠ Van {van_idx + 1} - Grupo 2 requires manual review")
+                print(f"[COPILOT LOG] Van {van_idx + 1} - Grupo 2 requires manual review - PATCHED BY GITHUB COPILOT")
 
             route_2_coords = [d['coordinates'] for d in route_2]
             route_2_coords.append(terminal_coord)  # End at terminal
@@ -1013,6 +1021,7 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
             for j in range(len(route_2_coords) - 1):
                 distance_2 += calculate_distance(route_2_coords[j], route_2_coords[j + 1])
 
+            print(f"[COPILOT LOG] Van {van_idx + 1} - Grupo 2 route distance: {distance_2:.2f} km - PATCHED BY GITHUB COPILOT")
             total_distance += distance_2
 
             vans.append({
@@ -1030,16 +1039,17 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
 
     # Create BUS route (bus stop → terminal)
     if bus_passengers:
+        print(f"[COPILOT LOG] Bus de Acercamiento: {len(bus_passengers)} passengers assigned - PATCHED BY GITHUB COPILOT")
         bus_route = [BUS_STOP_MAIPU, terminal_coord]
 
         # Get real road distance for bus route
         bus_route_info = get_route_distance_and_time(BUS_STOP_MAIPU, terminal_coord)
         if bus_route_info:
             bus_distance = bus_route_info['distance_km']
-            print(f"  ✓ Bus route (real): {bus_distance} km")
+            print(f"[COPILOT LOG] Bus route (real): {bus_distance} km - PATCHED BY GITHUB COPILOT")
         else:
             bus_distance = calculate_distance(BUS_STOP_MAIPU, terminal_coord)
-            print(f"  ⚠ Bus route (geodesic fallback): {bus_distance} km")
+            print(f"[COPILOT LOG] Bus route (geodesic fallback): {bus_distance} km - PATCHED BY GITHUB COPILOT")
 
         total_distance += bus_distance
 
@@ -1064,9 +1074,9 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
         })
 
     if needs_manual_review:
-        print(f"⚠ Bus mode optimization complete: {len(vans)} vehicles, {total_distance:.1f} km total - REQUIRES MANUAL REVIEW")
+        print(f"[COPILOT LOG] Bus mode optimization complete: {len(vans)} vehicles, {total_distance:.1f} km total - REQUIRES MANUAL REVIEW - PATCHED BY GITHUB COPILOT")
     else:
-        print(f"✓ Bus mode optimization complete: {len(vans)} vehicles, {total_distance:.1f} km total")
+        print(f"[COPILOT LOG] Bus mode optimization complete: {len(vans)} vehicles, {total_distance:.1f} km total - PATCHED BY GITHUB COPILOT")
 
     return vans, total_distance, needs_manual_review
 
@@ -1389,6 +1399,7 @@ def handle_optimize(event):
                 # Check if this terminal uses bus mode
                 # Activar bus solo si el terminal lo permite Y hay más pasajeros que la capacidad de una van
                 if uses_bus_mode(terminal) and len(terminal_drivers) > VAN_CAPACITY:
+                    print(f"[COPILOT LOG] Bus mode ACTIVATED for terminal '{terminal}' with {len(terminal_drivers)} passengers (capacity {VAN_CAPACITY}) - PATCHED BY GITHUB COPILOT")
                     terminal_coord = geocode_terminal(terminal)
                     bus_num_vans = num_vans_config if num_vans_config is not None else DEFAULT_NUM_VANS
                     vans, distance, needs_review = optimize_with_bus_mode(terminal_drivers, terminal, terminal_coord, bus_num_vans)

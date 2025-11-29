@@ -126,7 +126,7 @@ def optimize():
 
         logger.info(f"Route optimization completed - Status: {response['statusCode']}")
         if response['statusCode'] == 200:
-            logger.info(f"Optimization successful - Generated optimized route")
+            logger.info(f"Codigo Tilencia - Generated optimized route")
 
         return jsonify(body), response['statusCode']
 
