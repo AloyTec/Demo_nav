@@ -897,6 +897,17 @@ def optimize_route_tsp(drivers):
                     d['arrival_time_terminal_minutes'] = round(arrival_time_dest, 1)
                     d['arrival_time_terminal'] = format_minutes_to_time(arrival_time_dest)
         rutas.append((ruta, review))
+            # Validación: ¿algún pasajero llega tarde?
+            for d in ruta:
+                if (
+                    'arrival_time_terminal_minutes' in d and
+                    'presentation_time_minutes' in d and
+                    d['arrival_time_terminal_minutes'] > d['presentation_time_minutes']
+                ):
+                    needs_manual_review = True
+                    d['late_alert'] = True
+                else:
+                    d['late_alert'] = False
         if review:
             needs_manual_review = True
     # Unir rutas y marcar si alguna requiere revisión

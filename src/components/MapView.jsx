@@ -194,15 +194,14 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
                 if (!driver.coordinates) return null;
 
                 const isFirst = driverIndex === 0;
-                const isLast = driverIndex === van.drivers.length - 1;
-
+                // El último pasajero solo muestra el número
                 const customIcon = L.divIcon({
                   className: 'custom-marker',
                   html: `
                     <div style="
-                      background: ${isFirst ? '#22C55E' : isLast ? '#EF4444' : color};
-                      width: ${isFirst || isLast ? '36px' : '30px'};
-                      height: ${isFirst || isLast ? '36px' : '30px'};
+                      background: ${isFirst ? '#22C55E' : color};
+                      width: ${isFirst ? '36px' : '30px'};
+                      height: ${isFirst ? '36px' : '30px'};
                       border-radius: 50%;
                       border: 3px solid white;
                       box-shadow: 0 3px 10px rgba(0,0,0,0.4);
@@ -211,15 +210,59 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
                       justify-content: center;
                       color: white;
                       font-weight: bold;
-                      font-size: ${isFirst || isLast ? '16px' : '13px'};
+                      font-size: ${isFirst ? '16px' : '13px'};
                       transition: all 0.3s ease;
                     ">
-                      ${isFirst ? '🏁' : isLast ? '🏁' : driverIndex + 1}
+                      ${driverIndex + 1}
                     </div>
                   `,
-                  iconSize: [isFirst || isLast ? 36 : 30, isFirst || isLast ? 36 : 30],
-                  iconAnchor: [isFirst || isLast ? 18 : 15, isFirst || isLast ? 18 : 15],
+                  iconSize: [isFirst ? 36 : 30, isFirst ? 36 : 30],
+                  iconAnchor: [isFirst ? 18 : 15, isFirst ? 18 : 15],
                 });
+              })}
+              {/* Marcador extra para el destino final (bus/terminal) */}
+              {shouldShowRoute && !isBus && van.route && van.route.length > van.drivers.length && (() => {
+                const busPoint = van.route[van.route.length - 1];
+                const busIcon = L.divIcon({
+                  className: 'custom-marker',
+                  html: `
+                    <div style="
+                      background: #DC2626;
+                      width: 36px;
+                      height: 36px;
+                      border-radius: 50%;
+                      border: 3px solid white;
+                      box-shadow: 0 3px 10px rgba(0,0,0,0.4);
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      color: white;
+                      font-weight: bold;
+                      font-size: 20px;
+                      transition: all 0.3s ease;
+                    ">
+                      🚌
+                    </div>
+                  `,
+                  iconSize: [36, 36],
+                  iconAnchor: [18, 18],
+                });
+                return (
+                  <Marker
+                    key={`bus-destino-${vanIndex}`}
+                    position={[busPoint.lat, busPoint.lng]}
+                    icon={busIcon}
+                  >
+                    <Popup>
+                      <div className="p-2 min-w-[200px]">
+                        <h3 className="font-bold text-lg">🚌 Punto de Encuentro / Terminal</h3>
+                        <p className="text-xs text-gray-700 mb-1">Destino final de la ruta</p>
+                        <p className="text-xs text-gray-500">{van.destination}</p>
+                      </div>
+                    </Popup>
+                  </Marker>
+                );
+              })()}
 
                 return (
                   <Marker
@@ -229,6 +272,16 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
                   >
                     <Popup>
                       <div className="p-2 min-w-[200px]">
+                        {isBusStop && van.drivers.length > 0 && (
+                          <p className="text-xs text-gray-700 mb-1">
+                            🕐 Salida bus: {van.drivers[0].pickup_time_sequential ? van.drivers[0].pickup_time_sequential : ''}
+                          </p>
+                        )}
+                        {!isBusStop && van.drivers.length > 0 && (
+                          <p className="text-xs text-gray-700 mb-1">
+                            🕐 Llegada terminal: {van.drivers[van.drivers.length-1].arrival_time_terminal ? van.drivers[van.drivers.length-1].arrival_time_terminal : ''}
+                          </p>
+                        )}
                         <div className="flex items-center justify-between mb-2">
                           <h3 className="font-bold text-lg">{driver.name}</h3>
                           <span 
