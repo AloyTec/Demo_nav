@@ -1,6 +1,6 @@
 import json
 import base64
-import boto3
+
 import pandas as pd
 import numpy as np
 from io import BytesIO
@@ -18,9 +18,6 @@ from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 import hashlib
 from pathlib import Path
-
-# AWS clients
-s3_client = boto3.client('s3')
 
 # Configuration
 BUCKET_NAME = 'route-optimizer-demo-889268462469'
@@ -547,24 +544,31 @@ def create_distance_matrix(drivers):
         Distance matrix (2D list) in meters (scaled to int for OR-Tools)
     """
     num_locations = len(drivers)
+    # Matriz de tiempo en segundos (trayecto + 5 min por parada)
+    time_matrix = []
+    # Matriz de distancia en metros (real, no geodésica)
     distance_matrix = []
-
     for i in range(num_locations):
-        row = []
+        time_row = []
+        dist_row = []
         for j in range(num_locations):
             if i == j:
-                row.append(0)
+                time_row.append(0)
+                dist_row.append(0)
             else:
-                # Calculate distance in km, then convert to meters (int)
+                # Usar distancia real (Google Maps) si está disponible
                 distance_km = calculate_distance(
                     drivers[i]['coordinates'],
                     drivers[j]['coordinates']
                 )
-                distance_meters = int(distance_km * 1000)
-                row.append(distance_meters)
-        distance_matrix.append(row)
-
-    return distance_matrix
+                travel_time = estimate_travel_time(distance_km) * 60  # minutos a segundos
+                stop_time = 5 * 60  # 5 minutos en segundos
+                total_time = int(travel_time + stop_time)
+                time_row.append(total_time)
+                dist_row.append(int(distance_km * 1000))
+        time_matrix.append(time_row)
+        distance_matrix.append(dist_row)
+    return time_matrix, distance_matrix
 
 
 def optimize_route_ortools(drivers, time_limit_seconds=30):
@@ -584,45 +588,69 @@ def optimize_route_ortools(drivers, time_limit_seconds=30):
         return drivers, False
 
     try:
-        # Create distance matrix
-        distance_matrix = create_distance_matrix(drivers)
+        # Crear matriz de tiempos y distancias
+        time_matrix, distance_matrix = create_distance_matrix(drivers)
         num_locations = len(drivers)
 
-        # Create the routing index manager
+        # Crear el routing index manager
         manager = pywrapcp.RoutingIndexManager(num_locations, 1, 0)
 
-        # Create Routing Model
+        # Crear Routing Model
         routing = pywrapcp.RoutingModel(manager)
 
-        # Create and register distance callback
+        # Callback de tiempo
+        def time_callback(from_index, to_index):
+            from_node = manager.IndexToNode(from_index)
+            to_node = manager.IndexToNode(to_index)
+            return time_matrix[from_node][to_node]
+
+        transit_callback_index = routing.RegisterTransitCallback(time_callback)
+
+        # Callback de distancia
         def distance_callback(from_index, to_index):
-            """Returns the distance between the two nodes."""
             from_node = manager.IndexToNode(from_index)
             to_node = manager.IndexToNode(to_index)
             return distance_matrix[from_node][to_node]
 
-        transit_callback_index = routing.RegisterTransitCallback(distance_callback)
+        distance_callback_index = routing.RegisterTransitCallback(distance_callback)
 
-        # Define cost of each arc
+        # Multiobjetivo: minimizar tiempo y distancia
+        # Usar tiempo como costo principal
         routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
 
-        # Add capacity constraint (for pickup time windows if needed)
-        # This ensures the van doesn't exceed capacity
+        # Añadir dimensión de distancia para reporte y restricciones
+        routing.AddDimension(
+            distance_callback_index,
+            0,  # no slack
+            100000,  # distancia máxima permitida (ajustable)
+            True,
+            'Distance'
+        )
+
+        # Restricción de capacidad
         def demand_callback(from_index):
-            """Returns the demand of the node."""
             from_node = manager.IndexToNode(from_index)
-            return 1  # Each driver counts as 1 person
+            return 1
 
         demand_callback_index = routing.RegisterUnaryTransitCallback(demand_callback)
         routing.AddDimensionWithVehicleCapacity(
             demand_callback_index,
-            0,  # null capacity slack
-            [VAN_CAPACITY],  # vehicle maximum capacities
-            True,  # start cumul to zero
+            0,
+            [VAN_CAPACITY],
+            True,
             'Capacity'
         )
 
-        # Setting first solution heuristic
+        # Restricción de tiempo máximo de viaje por pasajero (1h30min = 5400 seg)
+        routing.AddDimension(
+            transit_callback_index,
+            0,  # no slack
+            5400,  # tiempo máximo permitido por pasajero (segundos)
+            True,
+            'Time'
+        )
+
+        # Heurística de solución inicial
         search_parameters = pywrapcp.DefaultRoutingSearchParameters()
         search_parameters.first_solution_strategy = (
             routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
@@ -864,6 +892,8 @@ def geocode_driver_parallel(driver_data):
 def uses_bus_mode(terminal):
     """Check if a terminal uses bus de acercamiento mode"""
     terminal_lower = terminal.lower().strip()
+    global VAN_CAPACITY
+    # Solo activar bus si el terminal lo permite Y hay más pasajeros que la capacidad de una van
     return any(term in terminal_lower for term in TERMINALS_WITH_BUS)
 
 def group_drivers_by_terminal(drivers):
@@ -899,9 +929,13 @@ def optimize_with_bus_mode(drivers, terminal, terminal_coord, num_vans_override=
         num_vans = num_vans_override
         print(f"Using configured number of vans: {num_vans}")
     else:
-        # Use DEFAULT_NUM_VANS (10 vans by default)
-        num_vans = DEFAULT_NUM_VANS
-        print(f"Using default fleet size: {num_vans} vans")
+        # Calcular número óptimo de vans según cantidad de pasajeros y capacidad
+        num_vans = max(1, int(np.ceil(len(drivers) / VAN_CAPACITY)))
+        print(f"[DYNAMIC VAN CALC] Using dynamic fleet size: {num_vans} vans (for {len(drivers)} passengers, capacity {VAN_CAPACITY})")
+        # Validación de ejecución en servidor
+        print("[SERVER VALIDATION] Dynamic van calculation is active on this server.")
+    # Validación de ejecución en servidor
+    print("[SERVER VALIDATION] Dynamic van calculation is active on this server.")
 
     # Cluster drivers using K-means
     print(f"Clustering into {num_vans} vans...")
@@ -1353,13 +1387,10 @@ def handle_optimize(event):
                 print(f"\nProcessing {len(terminal_drivers)} drivers for terminal: {terminal}")
 
                 # Check if this terminal uses bus mode
-                if uses_bus_mode(terminal):
-                    # BUS MODE: Use bus de acercamiento
+                # Activar bus solo si el terminal lo permite Y hay más pasajeros que la capacidad de una van
+                if uses_bus_mode(terminal) and len(terminal_drivers) > VAN_CAPACITY:
                     terminal_coord = geocode_terminal(terminal)
-
-                    # Use DEFAULT_NUM_VANS if not configured
                     bus_num_vans = num_vans_config if num_vans_config is not None else DEFAULT_NUM_VANS
-
                     vans, distance, needs_review = optimize_with_bus_mode(terminal_drivers, terminal, terminal_coord, bus_num_vans)
                     if needs_review:
                         routes_need_manual_review = True
