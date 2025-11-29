@@ -245,7 +245,8 @@ const MapView = ({ data, mobileMenuOpen = false }) => {
                           🚩 Terminal: {driver.terminal}
                         </p>
                         <p className="text-xs font-bold text-gray-700">
-                          🕐 Hora de recojo: {driver.pickup_time_latest}
+                          🕐 Hora de recojo: {driver.pickup_time_sequential ? driver.pickup_time_sequential : driver.pickup_time_latest}
+                          🚌 Hora de llegada al terminal: {driver.arrival_time_terminal ? driver.arrival_time_terminal : ''}
                         </p>
                         <p className="text-xs text-gray-500">
                           ⏰ Hora de presentación: {driver.time}

@@ -879,9 +879,23 @@ def optimize_route_tsp(drivers):
             for i, d in enumerate(ruta):
                 d['pickup_time_sequential_minutes'] = round(pickup_times[i], 1)
                 d['pickup_time_sequential'] = format_minutes_to_time(pickup_times[i])
-                # Hora estimada de llegada al terminal
-                d['arrival_time_terminal_minutes'] = round(presentation_time, 1)
-                d['arrival_time_terminal'] = format_minutes_to_time(presentation_time)
+                # Calcular llegada al destino final (terminal o bus)
+                # Usar la última parada y calcular tiempo real al destino
+                last_stop_coord = coords[-2]  # penúltimo es la última parada
+                if 'Bus de Acercamiento' in ruta[-1].get('destination', '') or 'bus' in ruta[-1].get('destination', '').lower():
+                    # Si el destino es bus, usar el punto de encuentro
+                    dest_coord = coords[-1]
+                else:
+                    # Si el destino es terminal, usar terminal_coord
+                    dest_coord = coords[-1]
+                travel_time_to_dest = get_route_distance_and_time(last_stop_coord, dest_coord)
+                if travel_time_to_dest:
+                    arrival_time_dest = pickup_times[-1] + travel_time_to_dest['duration_minutes']
+                else:
+                    arrival_time_dest = pickup_times[-1] + estimate_travel_time(calculate_distance(last_stop_coord, dest_coord))
+                for d in ruta:
+                    d['arrival_time_terminal_minutes'] = round(arrival_time_dest, 1)
+                    d['arrival_time_terminal'] = format_minutes_to_time(arrival_time_dest)
         rutas.append((ruta, review))
         if review:
             needs_manual_review = True
