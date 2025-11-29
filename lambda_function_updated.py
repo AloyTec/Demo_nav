@@ -786,7 +786,7 @@ def optimize_route_tsp_legacy(drivers):
         return drivers, False
 
 
-def group_drivers_by_time_and_location(drivers, max_group_size=10, time_window=60, max_distance_km=10):
+def group_drivers_by_time_and_location(drivers, max_group_size=10, time_window=120, max_distance_km=20):
     """
     Agrupa conductores por horario de recogida y cercanía geográfica.
     - max_group_size: máximo de conductores por grupo (van)
@@ -830,7 +830,7 @@ def optimize_route_tsp(drivers):
             - needs_manual_review: True if optimization failed and requires manual intervention
     """
     # --- Agrupamiento por horario de recogida y cercanía ---
-    grupos = group_drivers_by_time_and_location(drivers, max_group_size=VAN_CAPACITY, time_window=60, max_distance_km=10)
+    grupos = group_drivers_by_time_and_location(drivers, max_group_size=VAN_CAPACITY, time_window=120, max_distance_km=20)
 
     rutas = []
     needs_manual_review = False
