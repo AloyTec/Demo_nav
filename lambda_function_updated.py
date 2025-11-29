@@ -849,6 +849,39 @@ def optimize_route_tsp(drivers):
     for grupo in grupos:
         # Optimizar cada grupo por separado
         ruta, review = optimize_route_ortools(grupo)
+        # --- PATCH: Calcular horarios secuenciales de recogida ---
+        # Obtener matriz de tiempos reales entre paradas y terminal
+        if len(ruta) > 1:
+            # Construir matriz de tiempos entre paradas
+            coords = [d['coordinates'] for d in ruta]
+            terminal_coord = geocode_terminal(ruta[-1]['terminal']) if 'terminal' in ruta[-1] else None
+            if terminal_coord:
+                coords.append(terminal_coord)
+            else:
+                coords.append(coords[-1])
+            # Calcular tiempos entre paradas
+            segment_times = []
+            for i in range(len(coords) - 1):
+                seg_info = get_route_distance_and_time(coords[i], coords[i+1])
+                if seg_info:
+                    segment_times.append(seg_info['duration_minutes'])
+                else:
+                    segment_times.append(estimate_travel_time(calculate_distance(coords[i], coords[i+1])))
+            # Hora de presentación objetivo (el más exigente del grupo)
+            presentation_time = max([d['presentation_time_minutes'] for d in ruta])
+            # Hora de recogida del primero
+            total_travel_time = sum(segment_times)
+            pickup_times = [presentation_time - total_travel_time]
+            # Horas de recogida de los siguientes
+            for seg_time in segment_times[:-1]:
+                pickup_times.append(pickup_times[-1] + seg_time)
+            # Asignar a cada pasajero
+            for i, d in enumerate(ruta):
+                d['pickup_time_sequential_minutes'] = round(pickup_times[i], 1)
+                d['pickup_time_sequential'] = format_minutes_to_time(pickup_times[i])
+                # Hora estimada de llegada al terminal
+                d['arrival_time_terminal_minutes'] = round(presentation_time, 1)
+                d['arrival_time_terminal'] = format_minutes_to_time(presentation_time)
         rutas.append((ruta, review))
         if review:
             needs_manual_review = True
